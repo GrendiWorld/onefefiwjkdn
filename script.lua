@@ -1,4 +1,4 @@
--- �������� ������������
+-- Проверка зависимостей
 local function check_dependencies()
     local status = true
     local function log_dep(dep, loaded)
@@ -23,7 +23,7 @@ local table = require("table")
 local vector = require("vector")
 local trace = require("gamesense/trace")
 
--- ��������� �������
+-- Утилитные функции
 local function clamp(value, min, max)
     return math.max(min, math.min(max, value))
 end
@@ -61,67 +61,12 @@ local function time_to_ticks(t)
     return math.floor(0.5 + (t / globals.tickinterval()))
 end
 
--- ������� ��� ����������
-local helpers = {
-    animate_text = function(self, speed, text, r, g, b, a)
-        if not text or type(text) ~= "string" then return {{char = "ERROR", offset = 0}} end
-        local output = {}
-        local cur_time = globals.curtime() * speed
-        for i = 1, #text do
-            local char = string.sub(text, i, i)
-            local offset = math.sin(cur_time + (i * 0.1)) * 5
-            output[i] = {char = char, offset = offset}
-        end
-        return output
-    end,
-    get_state = function()
-        local me = entity.get_local_player()
-        if not me or not entity.is_alive(me) then return "DEAD" end
-        local flags = entity.get_prop(me, "m_fFlags") or 0
-        if flags == 1 or flags == 3 then
-            return entity.get_prop(me, "m_bIsScoped") == 1 and "SCOPED" or "STANDING"
-        elseif flags == 257 or flags == 261 then
-            return "CROUCHING"
-        elseif flags == 256 or flags == 260 then
-            return "AIRBORNE"
-        end
-        return "UNKNOWN"
-    end,
-    charge = function()
-        local me = entity.get_local_player()
-        if not me or not entity.is_alive(me) then return false end
-        local weapon = entity.get_player_weapon(me)
-        if not weapon then return false end
-        local clip = entity.get_prop(weapon, "m_iClip1") or 0
-        local ammo = entity.get_prop(weapon, "m_iPrimaryReserveAmmoCount") or 0
-        return clip > 0 or ammo > 0
-    end
-}
-
-local render = {
-    new_anim = function(self, id, target, speed)
-        if not self.animations then self.animations = {} end
-        if not self.animations[id] then
-            self.animations[id] = { value = target, last_time = globals.curtime() }
-        end
-        local anim = self.animations[id]
-        local cur_time = globals.curtime()
-        local delta = cur_time - anim.last_time
-        local factor = math.min(delta * speed, 1)
-        anim.value = anim.value + (target - anim.value) * factor
-        anim.last_time = cur_time
-        return anim.value
-    end,
-    alphen = function(self, alpha)
-        return math.max(0, math.min(255, alpha))
-    end
-}
-
+-- Цветовая схема
 local function accent()
     return 0, 255, 0, 255
 end
 
--- FFI �����������
+-- FFI определения
 ffi.cdef[[
     struct animstate {
         char pad0[0x18];
@@ -245,7 +190,7 @@ local function is_player_valid(player)
     return player and entity.is_alive(player) and not entity.is_dormant(player)
 end
 
--- ����� ��������
+-- Новый резолвер
 local max_history = 256
 local desync_threshold = 10
 local jitter_threshold = 18
@@ -900,7 +845,7 @@ client.set_event_callback("level_init", function()
     resolver.last_valid_tick = globals.tickcount()
 end)
 
--- UI ��������
+-- UI элементы
 local ui_group_a = {"LUA", "A"}
 local ui_group_b = {"LUA", "B"}
 local resolver = {
@@ -911,7 +856,8 @@ local scope = {
     color = ui.new_color_picker(ui_group_a[1], ui_group_a[2], "Scope Lines Color", 0, 255, 0, 255),
     position = ui.new_slider(ui_group_a[1], ui_group_a[2], "Scope Lines Position", 50, 500, 200, true, "px"),
     offset = ui.new_slider(ui_group_a[1], ui_group_a[2], "Scope Lines Offset", 5, 100, 20, true, "px"),
-    fade_speed = ui.new_slider(ui_group_a[1], ui_group_a[2], "Fade Animation Speed", 5, 20, 12, true, "fr")
+    fade_speed = ui.new_slider(ui_group_a[1], ui_group_a[2], "Fade Animation Speed", 5, 20, 12, true, "fr"),
+    thickness = ui.new_slider(ui_group_a[1], ui_group_a[2], "Scope Lines Thickness", 1, 5, 2, true, "px")
 }
 local crosshair_correction = {
     enabled = ui.new_checkbox(ui_group_a[1], ui_group_a[2], "Crosshair Correction", false)
@@ -920,22 +866,21 @@ local trails = {
     enabled = ui.new_checkbox(ui_group_b[1], ui_group_b[2], "Movement Trails", false),
     duration = ui.new_slider(ui_group_b[1], ui_group_b[2], "Trail Duration", 1, 10, 5, true, "s", 0.1),
     color = ui.new_color_picker(ui_group_b[1], ui_group_b[2], "Trail Color", 0, 255, 0, 255),
-    style = ui.new_combobox(ui_group_b[1], ui_group_b[2], "Trail Style", {"Line", "Wide Line", "Rectangle"}, "Line")
+    style = ui.new_combobox(ui_group_b[1], ui_group_b[2], "Trail Style", {"Line", "Wide Line", "Rectangle", "Glow"}, "Line")
 }
 local bullet_tracer = {
     enabled = ui.new_checkbox(ui_group_b[1], ui_group_b[2], "Bullet Tracers", false),
     duration = ui.new_slider(ui_group_b[1], ui_group_b[2], "Tracer Duration", 1, 10, 3, true, "s", 0.1),
-    color = ui.new_color_picker(ui_group_b[1], ui_group_b[2], "Tracer Color", 0, 255, 0, 255)
+    color = ui.new_color_picker(ui_group_b[1], ui_group_b[2], "Tracer Color", 0, 255, 0, 255),
+    thickness = ui.new_slider(ui_group_b[1], ui_group_b[2], "Tracer Thickness", 1, 5, 2, true, "px")
 }
 local trashtalk = {
     enabled = ui.new_checkbox(ui_group_b[1], ui_group_b[2], "Trashtalk", false)
 }
 local hitmarker = {
     enabled = ui.new_checkbox(ui_group_b[1], ui_group_b[2], "Hitmarker", false),
-    color = ui.new_color_picker(ui_group_b[1], ui_group_b[2], "Hitmarker Color", 0, 255, 0, 255)
-}
-local damage_indicator = {
-    enabled = ui.new_checkbox(ui_group_b[1], ui_group_b[2], "Damage Indicator", false)
+    color = ui.new_color_picker(ui_group_b[1], ui_group_b[2], "Hitmarker Color", 0, 255, 0, 255),
+    duration = ui.new_slider(ui_group_b[1], ui_group_b[2], "Hitmarker Duration", 1, 5, 1, true, "s", 0.1)
 }
 local kill_counter = {
     enabled = ui.new_checkbox(ui_group_b[1], ui_group_b[2], "Kill Counter", false)
@@ -943,14 +888,11 @@ local kill_counter = {
 local hit_streak = {
     enabled = ui.new_checkbox(ui_group_b[1], ui_group_b[2], "Hit Streak", false)
 }
-local crosshair_indicator = {
-    enabled = ui.new_checkbox(ui_group_b[1], ui_group_b[2], "Crosshair Indicator", true)
-}
 local clan_tag = {
     enabled = ui.new_checkbox(ui_group_a[1], ui_group_a[2], "zero.tech Clan Tag", false)
 }
 
--- ���������� ��������� ������ �� �������� ����
+-- Безопасное получение ссылок на элементы меню
 local refs = {
     rage = {
         dt = { pcall(ui.reference, "RAGE", "Aimbot", "Double tap") and ui.reference("RAGE", "Aimbot", "Double tap") or nil, nil },
@@ -966,56 +908,25 @@ else
     client.log("Warning: 'Quick peek' not found in RAGE->Aimbot, disabling Quick peek support")
 end
 
--- ���������
-local cals = {
-    crosshair = {
-        run = function()
-            if not ui.get(crosshair_indicator.enabled) then return end
-            local local_player = entity.get_local_player()
-            if not is_player_valid(local_player) then return end
-            local width, height = client.screen_size()
-            local x, y = width / 2, height / 2 + 20
-            local text = "zero.tech"
-            local state = helpers:get_state()
-            local r, g, b, a = accent()
-            local animated = helpers:animate_text(2, text, r, g, b, a)
-            local offset = 0
-            for _, char_data in ipairs(animated) do
-                if renderer.text then
-                    renderer.text(x + offset, y, r, g, b, a, "c", 0, char_data.char)
-                else
-                    renderer.circle(x + offset, y, r, g, b, a, 3, 0, 1)
-                end
-                offset = offset + renderer.measure_text("c", char_data.char)
-            end
-            if renderer.text then
-                renderer.text(x, y + 15, r, g, b, a, "c", 0, state)
-            else
-                renderer.circle(x, y + 15, r, g, b, a, 3, 0, 1)
-            end
-            local binds = {
-                { ref = refs.rage.dt[1], name = "dt" },
-                { ref = refs.rage.fd[1], name = "fd" },
-                { ref = refs.rage.qp[1], name = "qp" }
-            }
-            local bind_y = y + 30
-            for _, bind in ipairs(binds) do
-                if bind.ref and ui.get(bind.ref) then
-                    if renderer.text then
-                        renderer.text(x, bind_y, r, g, b, a, "c", 0, bind.name)
-                    else
-                        renderer.circle(x, bind_y, r, g, b, a, 3, 0, 1)
-                    end
-                    bind_y = bind_y + 15
-                end
-            end
+-- Утилиты для визуалов
+local render = {
+    animations = {},
+    new_anim = function(self, id, target, speed)
+        if not self.animations[id] then
+            self.animations[id] = { value = target, last_time = globals.curtime() }
         end
-    }
+        local anim = self.animations[id]
+        local cur_time = globals.curtime()
+        local delta = cur_time - anim.last_time
+        local factor = math.min(delta * speed, 1)
+        anim.value = anim.value + (target - anim.value) * factor
+        anim.last_time = cur_time
+        return anim.value
+    end,
+    alphen = function(self, alpha)
+        return math.max(0, math.min(255, alpha))
+    end
 }
-
-client.set_event_callback("paint", function()
-    cals.crosshair:run()
-end)
 
 local scope_overlay = ui.reference("VISUALS", "Effects", "Remove scope overlay")
 local alpha = 0
@@ -1041,6 +952,7 @@ local zero_tech_tag = {
     "zero.tec ", "zero.te ", "zero.t ", "zero. ", "zero ", "zer ", "ze ", "z ", " "
 }
 
+-- Улучшенные scope lines с пульсацией
 client.set_event_callback("paint", function()
     if not ui.get(scope.enabled) then return end
     ui.set(scope_overlay, false)
@@ -1048,6 +960,7 @@ client.set_event_callback("paint", function()
     local offset = (ui.get(scope.offset) * height) / 1080
     local position = (ui.get(scope.position) * height) / 1080
     local speed = ui.get(scope.fade_speed)
+    local thickness = ui.get(scope.thickness)
     local r, g, b, a = ui.get(scope.color)
     local player = entity.get_local_player()
     local weapon = entity.get_player_weapon(player)
@@ -1058,11 +971,19 @@ client.set_event_callback("paint", function()
     local is_active = is_valid and scope_level > 0 and is_scoped and not resume_zoom
     local frame_time = speed > 3 and globals.frametime() * speed or 1
     alpha = clamp(alpha + (is_active and frame_time or -frame_time), 0, 1)
+    local pulse = math.sin(globals.curtime() * 3) * 0.1 + 0.9  -- Пульсация прозрачности
+    local alpha_pulse = alpha * a * pulse
     if renderer.gradient then
-        renderer.gradient(width / 2 - position, height / 2, position - offset, 1, 0, 0, 0, 0, r, g, b, alpha * a, true)
-        renderer.gradient(width / 2 + offset, height / 2, position - offset, 1, r, g, b, alpha * a, 0, 0, 0, 0, true)
-        renderer.gradient(width / 2, height / 2 - position, 1, position - offset, 0, 0, 0, 0, r, g, b, alpha * a, false)
-        renderer.gradient(width / 2, height / 2 + offset, 1, position - offset, r, g, b, alpha * a, 0, 0, 0, 0, false)
+        -- Горизонтальные линии с градиентом
+        renderer.gradient(width / 2 - position, height / 2 - thickness / 2, position - offset, thickness, 0, 0, 0, 0, r, g, b, alpha_pulse, true)
+        renderer.gradient(width / 2 + offset, height / 2 - thickness / 2, position - offset, thickness, r, g, b, alpha_pulse, 0, 0, 0, 0, true)
+        -- Вертикальные линии с градиентом
+        renderer.gradient(width / 2 - thickness / 2, height / 2 - position, thickness, position - offset, 0, 0, 0, 0, r, g, b, alpha_pulse, false)
+        renderer.gradient(width / 2 - thickness / 2, height / 2 + offset, thickness, position - offset, r, g, b, alpha_pulse, 0, 0, 0, 0, false)
+        -- Точки в центре для акцента
+        if renderer.circle then
+            renderer.circle(width / 2, height / 2, r, g, b, alpha_pulse * 0.5, 3, 0, 1)
+        end
     else
         client.log("Error: renderer.gradient not found")
     end
@@ -1076,33 +997,11 @@ ui.set_callback(scope.enabled, function()
     ui.set_visible(scope.position, enabled)
     ui.set_visible(scope.offset, enabled)
     ui.set_visible(scope.fade_speed, enabled)
+    ui.set_visible(scope.thickness, enabled)
     client[enabled and "set_event_callback" or "unset_event_callback"]("paint_ui", function() ui.set(scope_overlay, true) end)
-    client[enabled and "set_event_callback" or "unset_event_callback"]("paint", function()
-        if not ui.get(scope.enabled) then return end
-        ui.set(scope_overlay, false)
-        local width, height = client.screen_size()
-        local offset = (ui.get(scope.offset) * height) / 1080
-        local position = (ui.get(scope.position) * height) / 1080
-        local speed = ui.get(scope.fade_speed)
-        local r, g, b, a = ui.get(scope.color)
-        local player = entity.get_local_player()
-        local weapon = entity.get_player_weapon(player)
-        local scope_level = weapon and entity.get_prop(weapon, "m_zoomLevel") or 0
-        local is_scoped = entity.get_prop(player, "m_bIsScoped") == 1
-        local resume_zoom = entity.get_prop(player, "m_bResumeZoom") == 1
-        local is_valid = is_player_valid(player) and weapon and scope_level
-        local is_active = is_valid and scope_level > 0 and is_scoped and not resume_zoom
-        local frame_time = speed > 3 and globals.frametime() * speed or 1
-        alpha = clamp(alpha + (is_active and frame_time or -frame_time), 0, 1)
-        if renderer.gradient then
-            renderer.gradient(width / 2 - position, height / 2, position - offset, 1, 0, 0, 0, 0, r, g, b, alpha * a, true)
-            renderer.gradient(width / 2 + offset, height / 2, position - offset, 1, r, g, b, alpha * a, 0, 0, 0, 0, true)
-            renderer.gradient(width / 2, height / 2 - position, 1, position - offset, 0, 0, 0, 0, r, g, b, alpha * a, false)
-            renderer.gradient(width / 2, height / 2 + offset, 1, position - offset, r, g, b, alpha * a, 0, 0, 0, 0, false)
-        end
-    end)
 end)
 
+-- Crosshair correction
 client.set_event_callback("paint", function()
     if not ui.get(crosshair_correction.enabled) then return end
     local local_player = entity.get_local_player()
@@ -1126,6 +1025,7 @@ client.set_event_callback("paint", function()
     end
 end)
 
+-- Улучшенные Movement Trails
 local function clear_trails()
     trail_data = { last_segments = 0 }
 end
@@ -1161,21 +1061,25 @@ client.set_event_callback("paint", function()
     for i, segment in ipairs(trail_data.segments) do
         local x, y = renderer.world_to_screen(segment.x, segment.y, segment.z)
         local alpha = clamp((segment.exp - cur_time) / (duration * 0.1), 0, 1) * a
+        local color_factor = 0.5 + 0.5 * (segment.exp - cur_time) / (duration * 0.1)  -- Плавный переход цвета
+        local r_fade, g_fade, b_fade = r * color_factor, g * color_factor, b * color_factor
         if x and y then
             if style == "Line" or style == "Wide Line" then
                 if i < #trail_data.segments then
                     local next_segment = trail_data.segments[i + 1]
                     local x2, y2 = renderer.world_to_screen(next_segment.x, next_segment.y, next_segment.z)
                     if x2 and y2 and renderer.line then
-                        table.insert(batch_lines, {x1 = x, y1 = y, x2 = x2, y2 = y2, r = r, g = g, b = b, a = alpha})
+                        table.insert(batch_lines, {x1 = x, y1 = y, x2 = x2, y2 = y2, r = r_fade, g = g_fade, b = b_fade, a = alpha})
                         if style == "Wide Line" and renderer.circle_outline then
-                            renderer.circle_outline(x, y, r, g, b, alpha * 0.5, 3, 0, 1, 2)
-                            renderer.circle_outline(x2, y2, r, g, b, alpha * 0.5, 3, 0, 1, 2)
+                            renderer.circle_outline(x, y, r_fade, g_fade, b_fade, alpha * 0.5, 3, 0, 1, 2)
+                            renderer.circle_outline(x2, y2, r_fade, g_fade, b_fade, alpha * 0.5, 3, 0, 1, 2)
                         end
                     end
                 end
-            elseif renderer.rectangle then
-                renderer.rectangle(x, y, 4, 4, r, g, b, alpha)
+            elseif style == "Rectangle" and renderer.rectangle then
+                renderer.rectangle(x - 2, y - 2, 4, 4, r_fade, g_fade, b_fade, alpha)
+            elseif style == "Glow" and renderer.circle then
+                renderer.circle(x, y, r_fade, g_fade, b_fade, alpha * 0.7, 5, 0, 1)
             end
         end
     end
@@ -1188,6 +1092,7 @@ end)
 
 client.set_event_callback("round_start", clear_trails)
 
+-- Улучшенные Bullet Tracers
 client.set_event_callback("bullet_impact", function(e)
     if not ui.get(bullet_tracer.enabled) then return end
     local player = entity.get_local_player()
@@ -1207,8 +1112,10 @@ client.set_event_callback("paint", function()
     local cur_time = globals.curtime()
     local duration = ui.get(bullet_tracer.duration)
     local r, g, b, a = ui.get(bullet_tracer.color)
+    local thickness = ui.get(bullet_tracer.thickness)
     ui.set_visible(bullet_tracer.duration, ui.get(bullet_tracer.enabled))
     ui.set_visible(bullet_tracer.color, ui.get(bullet_tracer.enabled))
+    ui.set_visible(bullet_tracer.thickness, ui.get(bullet_tracer.enabled))
     local batch_lines = {}
     for i = #bullet_tracers, 1, -1 do
         local tracer = bullet_tracers[i]
@@ -1218,8 +1125,19 @@ client.set_event_callback("paint", function()
             local x1, y1 = renderer.world_to_screen(tracer.start.x, tracer.start.y, tracer.start.z)
             local x2, y2 = renderer.world_to_screen(tracer.end_pos.x, tracer.end_pos.y, tracer.end_pos.z)
             local alpha = clamp((tracer.time + tracer.duration - cur_time) / tracer.duration, 0, 1) * a
+            local color_factor = 0.6 + 0.4 * (tracer.time + tracer.duration - cur_time) / tracer.duration
+            local r_fade, g_fade, b_fade = r * color_factor, g * color_factor, b * color_factor
             if x1 and x2 and renderer.line then
-                table.insert(batch_lines, {x1 = x1, y1 = y1, x2 = x2, y2 = y2, r = r, g = g, b = b, a = alpha})
+                for t = 1, thickness do
+                    table.insert(batch_lines, {
+                        x1 = x1 + (t - thickness / 2), y1 = y1,
+                        x2 = x2 + (t - thickness / 2), y2 = y2,
+                        r = r_fade, g = g_fade, b = b_fade, a = alpha * (1 - (t - 1) / thickness * 0.5)
+                    })
+                end
+                if renderer.circle_outline then
+                    renderer.circle_outline(x2, y2, r_fade, g_fade, b_fade, alpha * 0.6, 4, 0, 1, 2)
+                end
             end
         end
     end
@@ -1230,6 +1148,7 @@ client.set_event_callback("paint", function()
     end
 end)
 
+-- Trashtalk
 local last_trashtalk = 0
 client.set_event_callback("player_death", function(e)
     if not ui.get(trashtalk.enabled) then return end
@@ -1250,68 +1169,44 @@ client.set_event_callback("player_death", function(e)
     last_trashtalk = cur_time
 end)
 
+-- Улучшенный Hitmarker
 local hitmarker_time = 0
-local hitmarker_damage = 0
-local hitmarker_headshot = false
+local hitmarker_scale = 1
 client.set_event_callback("aim_hit", function(e)
     if not ui.get(hitmarker.enabled) then return end
     hitmarker_time = globals.curtime()
-    hitmarker_damage = e.damage
-    hitmarker_headshot = e.reason == "headshot"
+    hitmarker_scale = 1.5  -- Начальный масштаб для анимации
     client.exec("playvol buttons/blip2 0.6")
 end)
 
 client.set_event_callback("paint", function()
     if not ui.get(hitmarker.enabled) then return end
     local cur_time = globals.curtime()
-    if cur_time - hitmarker_time < 0.5 then
+    local duration = ui.get(hitmarker.duration)
+    if cur_time - hitmarker_time < duration then
         local width, height = client.screen_size()
         local x, y = width / 2, height / 2
         local r, g, b, a = ui.get(hitmarker.color)
+        local alpha = clamp((duration - (cur_time - hitmarker_time)) / duration, 0, 1) * a
+        local scale = render:new_anim("hitmarker_scale", 1, 10)  -- Плавное уменьшение масштаба
+        local pulse = math.sin(cur_time * 8) * 0.1 + 0.9  -- Пульсация
         if renderer.line and renderer.circle then
-            renderer.line(x - 12, y - 12, x - 6, y - 6, r, g, b, a)
-            renderer.line(x + 6, y - 6, x + 12, y - 12, r, g, b, a)
-            renderer.line(x - 12, y + 12, x - 6, y + 6, r, g, b, a)
-            renderer.line(x + 6, y + 6, x + 12, y + 12, r, g, b, a)
-            renderer.circle(x, y, r, g, b, a, 15, 0, 1)
+            local size = 12 * scale * pulse
+            renderer.line(x - size, y - size, x - size / 2, y - size / 2, r, g, b, alpha)
+            renderer.line(x + size / 2, y - size / 2, x + size, y - size, r, g, b, alpha)
+            renderer.line(x - size, y + size, x - size / 2, y + size / 2, r, g, b, alpha)
+            renderer.line(x + size / 2, y + size / 2, x + size, y + size, r, g, b, alpha)
+            renderer.circle(x, y, r, g, b, alpha * 0.7, 10 * scale, 0, 1)
+            if renderer.circle_outline then
+                renderer.circle_outline(x, y, r, g, b, alpha * 0.5, 12 * scale, 0, 1, 2)
+            end
         else
             client.log("Error: renderer.line or renderer.circle not found")
         end
     end
 end)
 
-local damage_indicators = {}
-client.set_event_callback("aim_hit", function(e)
-    if not ui.get(damage_indicator.enabled) then return end
-    local victim = e.target
-    if not is_player_valid(victim) then return end
-    local origin = vector(entity.get_prop(victim, "m_vecOrigin") or {x=0, y=0, z=0})
-    local view_offset = vector(entity.get_prop(victim, "m_vecViewOffset") or {x=0, y=0, z=0})
-    local head_pos = origin + view_offset
-    table.insert(damage_indicators, {
-        damage = e.damage,
-        time = globals.curtime(),
-        pos = head_pos
-    })
-end)
-
-client.set_event_callback("paint", function()
-    if not ui.get(damage_indicator.enabled) then return end
-    local cur_time = globals.curtime()
-    for i = #damage_indicators, 1, -1 do
-        local indicator = damage_indicators[i]
-        if cur_time - indicator.time > 0.6 then
-            table.remove(damage_indicators, i)
-        else
-            local x, y = renderer.world_to_screen(indicator.pos.x, indicator.pos.y, indicator.pos.z + 20)
-            if x and y and renderer.text then
-                local alpha = clamp((0.6 - (cur_time - indicator.time)) / 0.6, 0, 1) * 255
-                renderer.text(x, y, 0, 255, 0, alpha, "b", 0, tostring(indicator.damage))
-            end
-        end
-    end
-end)
-
+-- Kill Counter
 local kill_count = 0
 client.set_event_callback("player_death", function(e)
     if not ui.get(kill_counter.enabled) then return end
@@ -1336,6 +1231,7 @@ client.set_event_callback("paint", function()
     end
 end)
 
+-- Hit Streak
 local hit_streak_count = 0
 local hit_streak_time = 0
 client.set_event_callback("aim_hit", function(e)
@@ -1354,13 +1250,15 @@ client.set_event_callback("paint", function()
     if cur_time - hit_streak_time < 2 and hit_streak_count > 1 then
         local width, height = client.screen_size()
         if renderer.text then
-            renderer.text(width / 2, height / 2 - 30, 0, 255, 0, 255, "c", 0, hit_streak_count .. " HIT STREAK")
+            local alpha = clamp((2 - (cur_time - hit_streak_time)) / 2, 0, 1) * 255
+            renderer.text(width / 2, height / 2 - 30, 0, 255, 0, alpha, "c", 0, hit_streak_count .. " HIT STREAK")
         else
             client.log("Error: renderer.text not found for hit streak")
         end
     end
 end)
 
+-- Clan Tag
 local last_tag = 0
 client.set_event_callback("paint", function()
     if not ui.get(clan_tag.enabled) then return end
