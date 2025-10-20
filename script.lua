@@ -1,4 +1,7 @@
--- Проверка зависимостей
+local name = "zero.tech"
+
+
+
 local function check_dependencies()
     local status = true
     local function log_dep(dep, loaded)
@@ -788,59 +791,64 @@ end
 local ui_group_a = {"LUA", "A"}
 local ui_group_b = {"LUA", "B"}
 resolver.enabled = ui.new_checkbox(ui_group_a[1], ui_group_a[2], "Resolver", false)
+
 local scope = {
-    enabled = ui.new_checkbox(ui_group_a[1], ui_group_a[2], "Scope Lines", false),
-    color = ui.new_color_picker(ui_group_a[1], ui_group_a[2], "Scope Lines Color", 0, 255, 0, 255),
-    position = ui.new_slider(ui_group_a[1], ui_group_a[2], "Scope Lines Position", 50, 500, 200, true, "px"),
-    offset = ui.new_slider(ui_group_a[1], ui_group_a[2], "Scope Lines Offset", 5, 100, 20, true, "px"),
-    fade_speed = ui.new_slider(ui_group_a[1], ui_group_a[2], "Fade Animation Speed", 5, 20, 12, true, "fr"),
-    thickness = ui.new_slider(ui_group_a[1], ui_group_a[2], "Scope Lines Thickness", 1, 5, 2, true, "px")
+    enabled = ui.new_checkbox("LUA", "A", "Scope Lines"),
+    color = ui.new_color_picker("LUA", "A", "Color", 0, 255, 0, 255),
+    length = ui.new_slider("LUA", "A", "Length", 50, 500, 200, true, "px"),
+    gap = ui.new_slider("LUA", "A", "Gap", 5, 100, 20, true, "px"),
+    thickness = ui.new_slider("LUA", "A", "Thickness", 1, 5, 2, true, "px"),
+    fade_speed = ui.new_slider("LUA", "A", "Fade Speed", 5, 30, 15, true, "fr"),
+    rainbow = ui.new_checkbox("LUA", "A", "Rainbow"),
+    rainbow_speed = ui.new_slider("LUA", "A", "Rainbow Speed", 1, 100, 10, true, "%")
 }
 
--- Bullet Tracer
-local bullet_tracers = {}
-client.set_event_callback("bullet_impact", function(e)
-    if not ui.get(bullet_tracer.enabled) then return end
-    local player = entity.get_local_player()
-    if not player or entity.get_prop(e.userid, "m_iTeamNum") ~= entity.get_prop(player, "m_iTeamNum") then return end
-    local start = vector(entity.get_prop(player, "m_vecOrigin") or {x=0, y=0, z=0}) + vector(entity.get_prop(player, "m_vecViewOffset") or {x=0, y=0, z=0})
-    local impact = vector(e.x, e.y, e.z)
-    table.insert(bullet_tracers, {
-        start = start,
-        end_pos = impact,
-        time = globals.curtime(),
-        duration = ui.get(bullet_tracer.duration)
-    })
-end)
+local anim = { alpha = 0, target = 0, last_tick = 0 }
 
-client.set_event_callback("paint", resolver.update)
+local function is_scoped()
+    local lp = entity.get_local_player()
+    return lp and entity.is_alive(lp) and entity.get_prop(lp, "m_bIsScoped") == 1
+end
 
-client.set_event_callback("player_hurt", function(e)
-    if not ui.get(resolver.enabled) then return end
-    local attacker = client.userid_to_entindex(e.attacker)
-    local victim = client.userid_to_entindex(e.userid)
-    local local_player = entity.get_local_player()
-    if not local_player or attacker ~= local_player or victim == local_player then return end
-    resolver.on_shot_fired({
-        target = victim,
-        hit = true,
-        damage = e.dmg_health,
-        hitgroup = e.hitgroup,
-        tick = globals.tickcount(),
-        teleported = false
-    })
-end)
+client.set_event_callback("paint", function()
+    local lp = entity.get_local_player()
+    if not lp or not entity.is_alive(lp) then
+        anim.target = 0
+        return
+    end
 
-client.set_event_callback("aim_hit", function(e)
-    if not ui.get(resolver.enabled) then return end
-    resolver.on_shot_fired({
-        target = e.target,
-        hit = true,
-        damage = e.damage,
-        hitgroup = e.hitgroup,
-        tick = globals.tickcount(),
-        teleported = false
-    })
+    anim.target = ui.get(scope.enabled) and is_scoped() and 255 or 0
+
+    local tick = globals.tickcount()
+    if tick ~= anim.last_tick then
+        local speed = ui.get(scope.fade_speed) * 0.08
+        local diff = anim.target - anim.alpha
+        anim.alpha = anim.alpha + diff * speed
+        anim.last_tick = tick
+    end
+
+    if anim.alpha < 1 then return end
+
+    local w, h = client.screen_size()
+    local cx, cy = w * 0.5, h * 0.5
+    local len = ui.get(scope.length)
+    local gap = ui.get(scope.gap)
+    local thick = ui.get(scope.thickness)
+    local alpha = math.floor(anim.alpha + 0.5)
+
+    local r, g, b = ui.get(scope.color)
+    if ui.get(scope.rainbow) then
+        local speed = ui.get(scope.rainbow_speed) * 0.01
+        local t = globals.realtime() * speed
+        r = math.floor(math.sin(t) * 127 + 128)
+        g = math.floor(math.sin(t + 2) * 127 + 128)
+        b = math.floor(math.sin(t + 4) * 127 + 128)
+    end
+
+    renderer.line(cx - gap, cy, cx - len, cy, r, g, b, alpha, thick)
+    renderer.line(cx + gap, cy, cx + len, cy, r, g, b, alpha, thick)
+    renderer.line(cx, cy - gap, cx, cy - len, r, g, b, alpha, thick)
+    renderer.line(cx, cy + gap, cx, cy + len, r, g, b, alpha, thick)
 end)
 
 
@@ -912,33 +920,103 @@ client.set_event_callback("unload", function()
 end)
 
 
-
-local clantag_states = {
-    "z?e?r?o?.?t?e?c?h?",
-    "z?e?r?o?.?t?e?c?h?",
-    "z?e?r?o?.?t?e?c?h?",
-    "z?e?r?o?.?t?e?c?h?",
-    "????????.????????",
-    "????????.????????",
-    "z?e?r?o?.?t?e?c?h?",
-    "z?e?r?o?.?t?e?c?h?",
-    "z?e?r?o?.?t?e?c?h?",
-    "z?e?r?o?.?t?e?c?h?",
-    "z?e?r?o?.?t?e?c?h?",
-    "z?e?r?o?.?t?e?c?h?",
-    "z?e?r?o?.?t?e?c?h?",
-    "z?e?r?o?.?t?e?c?h?",
-    "z?e?r?o?.?t?e?c?h?",
-    "z?e?r?o?.?t?e?c?h?",
-    "z?e?r?o?.?t?e?c?h?",
-    "z?e?r?o?.?t?e?c?h?",
-    "z?e?r?o?.?t?e?c?h?",
-    "z?e?r?o?.?t?e?c?h?"
+-- Configuration
+local config = {
+    animation_speed = 0.4,
+    min_speed = 0.2,
+    max_speed = 1.2,
+    frames = {
+         " ",
+        "z ",
+        "ze ",
+        "zer ",
+        "zero ",
+        "zero. ",
+        "zero.t ",
+        "zero.te ",
+        "zero.tec ",
+        "zero.tech ",
+        "zero.tech. ",
+        "z.t ",
+        "zero.t ",
+        "zero_ ",
+        "zer_ ",
+        "ze_ ",
+        "z_ ",
+        " ",
+        "z| ",
+        "z|t ",
+        "z|t3 ",
+        "zer3 ",
+        "zero| ",
+        "zero.t| ",
+        "zero.te| ",
+        "zero.tec| ",
+        "zero.tech| ",
+        "z.t|_ ",
+        "z|_ ",
+        " "
+    }
 }
 
-local clantag_index = 1
-local clantag_last_change = 0
-local clantag_active = false
+
+local state = {
+    is_enabled = true,
+    last_update = 0,
+    current_frame = 1
+}
+
+
+local ui_elements = {
+    checkbox = ui.new_checkbox("LUA", "A", "Clan Tag", false),
+    speed_slider = ui.new_slider("LUA", "A", "Clan Tag Speed", 2, 12, 4, true, "s", 0.1)
+}
+
+
+local function safe_set_clantag(tag)
+    local success, error = pcall(function()
+        client.set_clan_tag(tag)
+    end)
+    if not success then
+        print("Error setting clan tag: " .. error)
+    end
+end
+
+
+local function set_clantag()
+    if not state.is_enabled then
+        safe_set_clantag("")
+        return
+    end
+
+    local current_time = globals.realtime()
+    if current_time - state.last_update < config.animation_speed then
+        return
+    end
+
+    state.current_frame = state.current_frame % #config.frames + 1
+    safe_set_clantag(config.frames[state.current_frame])
+    state.last_update = current_time
+end
+
+
+ui.set_callback(ui_elements.checkbox, function()
+    state.is_enabled = ui.get(ui_elements.checkbox)
+    if not state.is_enabled then
+        safe_set_clantag("")
+    end
+end)
+
+ui.set_callback(ui_elements.speed_slider, function()
+    config.animation_speed = ui.get(ui_elements.speed_slider) * 0.1
+end)
+
+
+client.set_event_callback("paint", set_clantag)
+client.set_event_callback("run_command", function()
+    state.is_enabled = ui.get(ui_elements.checkbox)
+    config.animation_speed = ui.get(ui_elements.speed_slider) * 0.1
+end)
 
 
 local trail_data = {
