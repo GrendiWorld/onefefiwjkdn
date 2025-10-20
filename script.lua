@@ -940,27 +940,6 @@ local clantag_index = 1
 local clantag_last_change = 0
 local clantag_active = false
 
-client.set_event_callback("paint_ui", function()
-    if ui.get(trails.enable) then
-        local cur_time = globals.realtime()
-        if cur_time - clantag_last_change >= 0.4 then
-            clantag_index = (clantag_index % #clantag_states) + 1
-            clantag_last_change = cur_time
-
-            local tag = clantag_states[clantag_index]
-            client.exec("name " .. tag)
-            client.exec("cl_clanid 0")
-            clantag_active = true
-        end
-    else
-        if clantag_active then
-            client.exec("name ")
-            clantag_active = false
-            clantag_index = 1
-            clantag_last_change = 0
-        end
-    end
-end)
 
 local trail_data = {
     last_origin = nil,
