@@ -1,3 +1,4 @@
+-- Проверка зависимостей
 local function check_dependencies()
     local status = true
     local function log_dep(dep, loaded)
@@ -22,6 +23,7 @@ local table = require("table")
 local vector = require("vector")
 local trace = require("gamesense/trace")
 
+-- Утилитные функции
 local function clamp(value, min, max)
     return math.max(min, math.min(max, value))
 end
@@ -59,10 +61,12 @@ local function time_to_ticks(t)
     return math.floor(0.5 + (t / globals.tickinterval()))
 end
 
+-- Цветовая схема
 local function accent()
     return 0, 255, 0, 255
 end
 
+-- FFI определения
 ffi.cdef[[
     struct animstate {
         char pad0[0x18];
@@ -186,28 +190,27 @@ local function is_player_valid(player)
     return player and entity.is_alive(player) and not entity.is_dormant(player)
 end
 
-local max_history = 512
-local desync_threshold = 8
-local jitter_threshold = 15
-local max_desync_history = 256
-local update_interval = 0.001
-local teleport_threshold = 100
-local sim_time_anomaly_threshold = 0.015
+-- Новый резолвер
+local max_history = 256
+local desync_threshold = 10
+local jitter_threshold = 18
+local max_desync_history = 128
+local update_interval = 0.002
+local teleport_threshold = 120
+local sim_time_anomaly_threshold = 0.025
 local max_misses = 1
-local fov_threshold = 75
+local fov_threshold = 65
 local max_yaw_delta = 180
-local max_pitch_delta = 89
+local max_pitch_delta = 90
 local tickrate = 64
-local hideshot_threshold = 0.015
-local air_crouch_threshold = 0.15
-local ping_threshold = 60
+local hideshot_threshold = 0.02
+local air_crouch_threshold = 0.2
+local ping_threshold = 70
 local max_velocity = 450
-local max_anim_layers = 15
-local min_sim_time_delta = 0.004
-local max_hitbox_shift = 6
-local lag_spike_threshold = 0.03
-local advanced_analysis = true
-local brute_force_enabled = true
+local max_anim_layers = 13
+local min_sim_time_delta = 0.006
+local max_hitbox_shift = 4
+local lag_spike_threshold = 0.04
 
 json.encode_number_precision(6)
 json.encode_sparse_array(true, 2, 10)
@@ -216,8 +219,7 @@ local resolver = {
     player_records = {},
     last_simulation_time = {},
     last_update = globals.realtime(),
-    last_valid_tick = globals.tickcount(),
-    brute_force_cache = {}
+    last_valid_tick = globals.tickcount()
 }
 
 local function create_circular_buffer(size)
@@ -232,10 +234,6 @@ local function create_circular_buffer(size)
     end
     function buffer:len()
         return math.min(#self.data, self.size)
-    end
-    function buffer:clear()
-        self.data = {}
-        self.head = 0
     end
     return buffer
 end
@@ -302,129 +300,14 @@ local function analyze_anim_layers(player)
     local layer_data = {}
     for i = 0, max_anim_layers - 1 do
         local weight = entity.get_prop(player, "m_AnimOverlay", i) or 0
-        local sequence = entity.get_prop(player, "m_AnimOverlay", i, "m_nSequence") or 0
         if weight > 0 then
-            table.insert(layer_data, {index = i, weight = weight, sequence = sequence})
+            table.insert(layer_data, {index = i, weight = weight})
         end
     end
     return layer_data
 end
 
-local function advanced_aa_detection(records)
-    if not records or records.last_angles:len() < 10 then return "none" end
-
-    local yaw_deltas = {}
-    local pitch_deltas = {}
-    local body_yaw_deltas = {}
-    local lby_deltas = {}
-    local sim_time_deltas = {}
-    local velocity_samples = {}
-    local duck_samples = {}
-    local layer_sequence_changes = {}
-    local tick_base_samples = {}
-
-    for i = 2, records.last_angles:len() do
-        local curr = records.last_angles:get(i-1)
-        local prev = records.last_angles:get(i)
-        if not curr or not prev then break end
-
-        local yaw_delta = math.abs(curr.angles[2] - prev.angles[2])
-        yaw_delta = math.min(yaw_delta, max_yaw_delta)
-        yaw_deltas[#yaw_deltas + 1] = yaw_delta
-
-        local pitch_delta = math.abs(curr.angles[1] - prev.angles[1])
-        pitch_deltas[#pitch_deltas + 1] = pitch_delta
-
-        local curr_body_yaw = entity.get_prop(curr.player, "m_flPoseParameter", 11) * 120 - 60
-        local prev_body_yaw = entity.get_prop(prev.player, "m_flPoseParameter", 11) * 120 - 60
-        body_yaw_deltas[#body_yaw_deltas + 1] = math.abs(curr_body_yaw - prev_body_yaw)
-
-        local curr_lby = entity.get_prop(curr.player, "m_flLowerBodyYawTarget") or 0
-        local prev_lby = entity.get_prop(prev.player, "m_flLowerBodyYawTarget") or 0
-        lby_deltas[#lby_deltas + 1] = math.abs(curr_lby - prev_lby)
-
-        sim_time_deltas[#sim_time_deltas + 1] = curr.sim_time - prev.sim_time
-        velocity_samples[#velocity_samples + 1] = curr.velocity
-        duck_samples[#duck_samples + 1] = entity.get_prop(curr.player, "m_flDuckAmount") or 0
-        
-        local curr_layers = curr.anim_layers
-        local prev_layers = prev.anim_layers
-        local seq_change = 0
-        if curr_layers[1] and prev_layers[1] then
-            seq_change = curr_layers[1].sequence ~= prev_layers[1].sequence and 1 or 0
-        end
-        layer_sequence_changes[#layer_sequence_changes + 1] = seq_change
-
-        tick_base_samples[#tick_base_samples + 1] = entity.get_prop(curr.player, "m_nTickBase") or 0
-    end
-
-    local stats = {
-        yaw_avg = 0, yaw_std = 0, yaw_max = 0,
-        body_avg = 0, body_std = 0, body_max = 0,
-        lby_avg = 0, lby_std = 0,
-        sim_avg = 0, sim_std = 0,
-        vel_avg = 0, vel_std = 0,
-        duck_avg = 0, duck_std = 0,
-        seq_changes = 0
-    }
-
-    for k, v in pairs(stats) do
-        if k:match("avg") then
-            local sum = 0
-            for _, val in ipairs((function()
-                if k == "yaw_avg" then return yaw_deltas
-                elseif k == "body_avg" then return body_yaw_deltas
-                elseif k == "lby_avg" then return lby_deltas
-                elseif k == "sim_avg" then return sim_time_deltas
-                elseif k == "vel_avg" then return velocity_samples
-                elseif k == "duck_avg" then return duck_samples
-                end
-            end)()) do sum = sum + val end
-            stats[k] = #yaw_deltas > 0 and sum / #yaw_deltas or 0
-        elseif k:match("max") then
-            stats.yaw_max = math.max(unpack(yaw_deltas))
-            stats.body_max = math.max(unpack(body_yaw_deltas))
-        elseif k == "seq_changes" then
-            stats.seq_changes = 0
-            for _, v in ipairs(layer_sequence_changes) do stats.seq_changes = stats.seq_changes + v end
-        end
-    end
-
-    local variance = function(arr)
-        local avg = stats[(arr == yaw_deltas and "yaw_avg") or (arr == body_yaw_deltas and "body_avg") or "sim_avg"]
-        local sum_sq = 0
-        for _, val in ipairs(arr) do sum_sq = sum_sq + (val - avg)^2 end
-        return #arr > 0 and sum_sq / #arr or 0
-    end
-
-    stats.yaw_std = math.sqrt(variance(yaw_deltas))
-    stats.body_std = math.sqrt(variance(body_yaw_deltas))
-    stats.sim_std = math.sqrt(variance(sim_time_deltas))
-
-    local ping = entity.get_prop(records.last_angles:get(1).player, "m_iPing") or 0
-    local ping_factor = ping > ping_threshold and 1.2 or 1.0
-
-    if is_server_lagging() then return "lag_spike"
-    elseif stats.yaw_max > jitter_threshold * ping_factor and stats.yaw_std > 8 then return "jitter"
-    elseif stats.body_max > 45 and stats.yaw_avg > desync_threshold * ping_factor then return "desync"
-    elseif stats.sim_std < sim_time_anomaly_threshold * 0.8 then return "fakelag"
-    elseif stats.yaw_max > 60 * ping_factor then return "spinbot"
-    elseif stats.lby_avg > 25 and stats.body_std > 15 then return "lby_fake"
-    elseif stats.yaw_avg > 3 and stats.yaw_avg < 8 and stats.seq_changes > 5 then return "micro_adjust"
-    elseif stats.duck_avg > 0.3 and stats.yaw_std > 12 then return "duck_desync"
-    elseif stats.vel_avg > 100 and stats.body_max > 35 then return "move_jitter"
-    elseif stats.seq_changes > 8 and stats.sim_std < 0.02 then return "layer_exploit"
-    elseif stats.yaw_std < 2 and stats.yaw_avg > 1 then return "static_low"
-    end
-
-    return "static"
-end
-
 local function detect_anti_aim_type(records)
-    if advanced_analysis then
-        return advanced_aa_detection(records)
-    end
-
     if not records or not records.last_angles or records.last_angles:len() < 5 then return "none" end
 
     local yaw_deltas = {}
@@ -567,116 +450,112 @@ local function detect_anti_aim_type(records)
     return "static"
 end
 
-local function predict_desync_advanced(player, steam_id, records, aa_type)
-    if not records or records.last_angles:len() < 5 then return records.learned_side end
+local function predict_desync(player, steam_id, records, aa_type)
+    if not records or not records.last_angles or records.last_angles:len() < 3 then return records.learned_side end
 
-    local recent_angles = {}
-    for i = 1, math.min(8, records.last_angles:len()) do
-        local angle = records.last_angles:get(i)
-        if angle then table.insert(recent_angles, angle.angles[2]) end
-    end
-
-    local ml_prediction = 0
-    if #recent_angles >= 4 then
-        local sum = 0
-        for i = 2, #recent_angles do
-            sum = sum + (recent_angles[i] - recent_angles[i-1])
-        end
-        ml_prediction = sum / (#recent_angles - 1)
+    local yaw_deltas = {}
+    local max_delta = 0
+    for i = 2, records.last_angles:len() do
+        local curr = records.last_angles:get(i-1)
+        local prev = records.last_angles:get(i)
+        if not curr or not prev then return records.learned_side end
+        local delta = math.abs(curr.angles[2] - prev.angles[2])
+        delta = math.min(delta, max_yaw_delta)
+        yaw_deltas[i-1] = delta
+        max_delta = math.max(max_delta, delta)
     end
 
     local velocity, velocity_vec = calculate_velocity(player)
-    local is_moving = velocity > 15
+    local is_moving = velocity > 15 and velocity < max_velocity
+    local side = records.learned_side or (globals.tickcount() % 2 == 0 and 1 or -1)
+
     local angle_to_velocity = 0
     if velocity_vec.x ~= 0 or velocity_vec.y ~= 0 then
-        angle_to_velocity = math.deg(math.atan2(velocity_vec.y, velocity_vec.x)) - recent_angles[1]
+        angle_to_velocity = math.deg(math.atan2(velocity_vec.y, velocity_vec.x)) - (records.last_angles:get(1) and records.last_angles:get(1).angles[2] or 0)
         angle_to_velocity = ((angle_to_velocity % 360 + 540) % 360 - 180)
     end
 
-    local lby = entity.get_prop(player, "m_flLowerBodyYawTarget") or 0
-    local body_yaw = (entity.get_prop(player, "m_flPoseParameter", 11) or 0) * 120 - 60
-    local lby_delta = math.abs(lby - recent_angles[1])
+    local avg_delta = 0
+    for _, delta in ipairs(yaw_deltas) do avg_delta = avg_delta + delta end
+    avg_delta = #yaw_deltas > 0 and avg_delta / #yaw_deltas or 0
 
-    local pattern_weights = {0.4, 0.3, 0.2, 0.1}
+    local ping = entity.get_prop(player, "m_iPing") or 0
+    local ping_factor = ping > ping_threshold and 1.1 or 1.0
+
     local pattern_score = 0
-    local pattern_length = math.min(records.desync_history:len(), 4)
+    local pattern_length = math.min(records.desync_history and records.desync_history:len() or 0, 20)
     for i = 1, pattern_length do
-        local s = records.desync_history:get(i)
-        if s then pattern_score = pattern_score + s * pattern_weights[i] end
+        local s = records.desync_history and records.desync_history:get(i)
+        if s then pattern_score = pattern_score + s * (1 - (i-1) / pattern_length) end
     end
 
-    local confidence = math.min(records.missed_shots * 0.25 + 0.5, 1.0)
-    
-    local side = records.learned_side or 1
-    if aa_type == "jitter" or aa_type == "micro_jitter" or aa_type == "adaptive_jitter" then
-        side = ml_prediction > 0 and 1 or -1
-        if pattern_score > 0 then side = 1 elseif pattern_score < 0 then side = -1 end
-    elseif aa_type == "desync" or aa_type == "lby_fake" then
-        side = lby_delta > 30 and (lby > recent_angles[1] and 1 or -1) or (angle_to_velocity > 0 and 1 or -1)
+    local anim_layers = analyze_anim_layers(player)
+    local layer_weight_sum = 0
+    for _, layer in ipairs(anim_layers) do layer_weight_sum = layer_weight_sum + layer.weight end
+
+    if aa_type == "lag_spike" then
+        side = records.learned_side or (globals.tickcount() % 2 == 0 and 1 or -1)
+    elseif aa_type == "teleport" then
+        side = (records.missed_shots + globals.tickcount()) % 2 == 0 and 1 or -1
+    elseif aa_type == "jitter" or aa_type == "micro_jitter" or aa_type == "adaptive_jitter" then
+        side = #yaw_deltas > 0 and yaw_deltas[#yaw_deltas] > 0 and 1 or -1
+        if records.desync_history and records.desync_history:len() > 8 then
+            side = pattern_score >= 0 and 1 or -1
+        end
+        if records.desync_history then records.desync_history:push(side) end
+    elseif aa_type == "desync" then
+        if avg_delta > desync_threshold * ping_factor or is_moving then
+            side = #yaw_deltas > 0 and yaw_deltas[#yaw_deltas] > 0 and 1 or -1
+            if math.abs(angle_to_velocity) > 30 then side = side * -1 end
+            if records.desync_history and records.desync_history:len() > 8 then side = pattern_score >= 0 and 1 or -1 end
+            if records.desync_history then records.desync_history:push(side) end
+        end
     elseif aa_type == "spinbot" or aa_type == "fake_spin" then
-        side = (globals.tickcount() % 4 < 2) and 1 or -1
+        side = records.desync_history and records.desync_history:get(1) or (globals.tickcount() % 2 == 0 and 1 or -1)
     elseif aa_type == "fakelag" then
         side = (records.missed_shots + globals.tickcount()) % 3 == 0 and 1 or -1
-    elseif aa_type == "air_crouch" or aa_type == "duck_desync" then
-        side = entity.get_prop(player, "m_flDuckAmount") > air_crouch_threshold and 1 or -1
-    elseif aa_type == "move_jitter" and is_moving then
-        side = angle_to_velocity > 15 and 1 or -1
-    elseif aa_type == "layer_exploit" then
-        local layers = analyze_anim_layers(player)
-        side = #layers > 3 and 1 or -1
-    else
-        side = pattern_score * confidence > 0 and 1 or -1
+    elseif aa_type == "custom" then
+        side = records.missed_shots % 2 == 0 and 1 or -1
+        if records.desync_history and records.desync_history:len() > 8 then
+            side = pattern_score >= 0 and 1 or -1
+        end
+        if records.desync_history then records.desync_history:push(side) end
+    elseif aa_type == "fake_pitch" then
+        side = (globals.tickcount() % 4 < 2) and 1 or -1
+    elseif aa_type == "air_crouch" then
+        side = (entity.get_prop(player, "m_flDuckAmount") or 0) > air_crouch_threshold and 1 or -1
+        if records.desync_history then records.desync_history:push(side) end
+    elseif aa_type == "hideshot" then
+        side = records.anim_state % 2 == 0 and 1 or -1
+        if layer_weight_sum > 1.2 then
+            side = layer_weight_sum % 2 < 1 and 1 or -1
+        end
+        if records.desync_history and records.desync_history:len() > 8 then
+            side = pattern_score >= 0 and 1 or -1
+        end
+        if records.desync_history then records.desync_history:push(side) end
+    elseif aa_type == "low_delta" then
+        side = avg_delta > 4 and 1 or -1
+        if records.desync_history then records.desync_history:push(side) end
+    elseif aa_type == "defensive" then
+        side = is_moving and (angle_to_velocity > 0 and 1 or -1) or (records.missed_shots % 2 == 0 and 1 or -1)
+        if records.desync_history and records.desync_history:len() > 8 then
+            side = pattern_score >= 0 and 1 or -1
+        end
+        if records.desync_history then records.desync_history:push(side) end
+    elseif aa_type == "fake_lby" or aa_type == "dynamic_lby" then
+        side = (records.missed_shots + globals.tickcount()) % 2 == 0 and 1 or -1
+        if records.desync_history then records.desync_history:push(side) end
+    elseif aa_type == "fake_duck" then
+        side = (entity.get_prop(player, "m_flDuckSpeed") or 0) > 1 and 1 or -1
+        if records.desync_history then records.desync_history:push(side) end
     end
 
-    records.desync_history:push(side)
-    return side
-end
-
-local function brute_force_resolve(player, steam_id, base_angle, records)
-    if not brute_force_enabled or not records then return base_angle end
-    
-    local cache_key = steam_id .. "_" .. globals.tickcount()
-    if resolver.brute_force_cache[cache_key] then
-        return resolver.brute_force_cache[cache_key]
+    if records.desync_history and records.desync_history:len() > max_desync_history then
+        records.desync_history:push(nil)
     end
 
-    local best_angle = base_angle
-    local best_score = -math.huge
-    local test_angles = {-60, -45, -30, -15, 0, 15, 30, 45, 60}
-    
-    for _, offset in ipairs(test_angles) do
-        local test_angle = base_angle + offset
-        local score = 0
-        
-        local hitbox_pos = get_hitbox_position(player, 0)
-        if hitbox_pos then
-            local test_pos = {
-                x = hitbox_pos.x + math.cos(math.rad(test_angle)) * 58,
-                y = hitbox_pos.y + math.sin(math.rad(test_angle)) * 58,
-                z = hitbox_pos.z
-            }
-            
-            local trace_result = trace.line(entity.get_local_player(), test_pos.x, test_pos.y, test_pos.z)
-            if trace_result and trace_result.fraction > 0.95 then
-                score = score + 100
-            end
-        end
-        
-        local velocity = calculate_velocity(player)
-        if velocity > 15 then
-            local move_angle = math.deg(math.atan2(velocity_vec.y, velocity_vec.x))
-            local angle_diff = math.abs(((test_angle - move_angle + 540) % 360) - 180)
-            score = score - angle_diff * 0.5
-        end
-        
-        if score > best_score then
-            best_score = score
-            best_angle = test_angle
-        end
-    end
-    
-    resolver.brute_force_cache[cache_key] = best_angle
-    return best_angle
+    return pattern_score >= 0 and 1 or -1
 end
 
 local function smooth_angle(current, target, factor)
@@ -684,26 +563,18 @@ local function smooth_angle(current, target, factor)
     return current + delta * factor
 end
 
-local function adjust_hitbox_position(hitbox_pos, aa_type, duck_amount, is_airborne, side)
+local function adjust_hitbox_position(hitbox_pos, aa_type, duck_amount, is_airborne)
     if not hitbox_pos then return nil end
     local adjusted = {x = hitbox_pos.x, y = hitbox_pos.y, z = hitbox_pos.z}
-    
-    local shift_x = math.cos(math.rad(side * 58)) * max_hitbox_shift * 0.8
-    local shift_y = math.sin(math.rad(side * 58)) * max_hitbox_shift * 0.8
-    
-    adjusted.x = adjusted.x + shift_x
-    adjusted.y = adjusted.y + shift_y
-    
     if aa_type == "air_crouch" and is_airborne and duck_amount > air_crouch_threshold then
-        adjusted.z = adjusted.z - max_hitbox_shift * duck_amount * 1.2
-    elseif aa_type:match("desync") and duck_amount > 0.1 then
-        adjusted.z = adjusted.z - max_hitbox_shift * 0.3 * duck_amount
-    elseif aa_type:match("lby") or aa_type == "duck_desync" then
-        adjusted.z = adjusted.z - max_hitbox_shift * 0.5
-    elseif aa_type:match("jitter") then
-        adjusted.z = adjusted.z - max_hitbox_shift * 0.2
+        adjusted.z = adjusted.z - max_hitbox_shift * duck_amount
+    elseif aa_type == "defensive" and duck_amount > 0.1 then
+        adjusted.z = adjusted.z - max_hitbox_shift * 0.2 * duck_amount
+    elseif aa_type == "fake_duck" or aa_type == "fake_lby" or aa_type == "dynamic_lby" then
+        adjusted.z = adjusted.z - max_hitbox_shift * 0.4
+    elseif aa_type == "adaptive_jitter" or aa_type == "fake_spin" then
+        adjusted.z = adjusted.z - max_hitbox_shift * 0.15
     end
-    
     return adjusted
 end
 
@@ -717,7 +588,7 @@ function resolver.record_player(player)
         resolver.player_records[steam_id] = {
             last_angles = create_circular_buffer(max_history),
             desync_history = create_circular_buffer(max_desync_history),
-            shot_records = create_circular_buffer(32),
+            shot_records = create_circular_buffer(16),
             missed_shots = 0,
             learned_side = nil,
             last_valid_pos = nil,
@@ -728,17 +599,13 @@ function resolver.record_player(player)
             last_valid_sim_time = 0,
             last_anim_state = 0,
             last_move_state = false,
-            last_anim_layers = {},
-            lby_history = create_circular_buffer(16),
-            velocity_history = create_circular_buffer(16)
+            last_anim_layers = {}
         }
         resolver.last_simulation_time[steam_id] = 0
     end
 
     local sim_time = entity.get_prop(player, "m_flSimulationTime") or 0
-    if sim_time <= 0 or (resolver.last_simulation_time[steam_id] and sim_time <= resolver.last_simulation_time[steam_id]) or 
-       math.abs(sim_time - (resolver.last_simulation_time[steam_id] or 0)) > 1 or 
-       math.abs(sim_time - (resolver.last_simulation_time[steam_id] or 0)) < min_sim_time_delta then
+    if sim_time <= 0 or (resolver.last_simulation_time[steam_id] and sim_time <= resolver.last_simulation_time[steam_id]) or math.abs(sim_time - (resolver.last_simulation_time[steam_id] or 0)) > 1 or math.abs(sim_time - (resolver.last_simulation_time[steam_id] or 0)) < min_sim_time_delta then
         return
     end
 
@@ -750,7 +617,6 @@ function resolver.record_player(player)
     local hitbox_pos = get_hitbox_position(player, 0)
     local velocity, velocity_vec = calculate_velocity(player)
     local records = resolver.player_records[steam_id]
-    local lby = entity.get_prop(player, "m_flLowerBodyYawTarget") or 0
 
     if hitbox_pos and records.last_valid_pos and calculate_distance(records.last_valid_pos, hitbox_pos) > teleport_threshold then
         records.last_teleport_time = globals.realtime()
@@ -760,7 +626,6 @@ function resolver.record_player(player)
 
     local anim_state = entity.get_prop(player, "m_nPlayerAnimState") or 0
     local anim_layers = analyze_anim_layers(player)
-    
     records.last_angles:push({
         angles = eye_angles,
         sim_time = sim_time,
@@ -769,12 +634,8 @@ function resolver.record_player(player)
         player = player,
         anim_state = anim_state,
         velocity = velocity,
-        anim_layers = anim_layers,
-        lby = lby
+        anim_layers = anim_layers
     })
-
-    records.lby_history:push(lby)
-    records.velocity_history:push(velocity)
 
     records.aa_type = detect_anti_aim_type(records)
     resolver.last_simulation_time[steam_id] = sim_time
@@ -794,50 +655,43 @@ function resolver.resolve_angles(player)
     if not records.last_angles or records.last_angles:len() < 2 then return end
 
     local aa_type = records.aa_type
-    local side = predict_desync_advanced(player, steam_id, records, aa_type)
-    records.learned_side = side
-    
-    local base_angle = records.last_angles:get(1).angles[2]
+    records.learned_side = predict_desync(player, steam_id, records, aa_type)
+    local base_angle = (records.last_angles:get(1) and records.last_angles:get(1).angles[2]) or 0
     local resolve_angle = base_angle
 
-    local desync_amount = ({
-        ["lag_spike"] = 95, ["spinbot"] = 120, ["teleport"] = 140, ["fakelag"] = 105,
-        ["jitter"] = 65, ["micro_jitter"] = 35, ["adaptive_jitter"] = 70,
-        ["desync"] = 58, ["lby_fake"] = 110, ["dynamic_lby"] = 105,
-        ["air_crouch"] = 80, ["duck_desync"] = 75, ["fake_duck"] = 85,
-        ["hideshot"] = 90, ["layer_exploit"] = 75, ["move_jitter"] = 70,
-        ["micro_adjust"] = 25, ["static_low"] = 15
-    })[aa_type] or 58
-
-    desync_amount = desync_amount * (1 + math.min(records.missed_shots * 0.35, 2.0))
-    desync_amount = math.min(desync_amount, 140)
-
+    local ping = entity.get_prop(player, "m_iPing") or 0
+    local ping_factor = ping > ping_threshold and 1.1 or 1.0
     local duck_amount = entity.get_prop(player, "m_flDuckAmount") or 0
     local is_airborne = bit.band(entity.get_prop(player, "m_fFlags") or 1, 1) == 0
     local velocity = calculate_velocity(player)
 
-    if aa_type:match("desync") or aa_type:match("jitter") then
-        desync_amount = desync_amount * (1 + duck_amount * 0.5)
-    end
-    if velocity > 120 then
-        desync_amount = desync_amount * 1.15
+    if records.learned_side then
+        local desync_amount = aa_type == "lag_spike" and 85 or aa_type == "spinbot" and 105 or aa_type == "teleport" and 125 or aa_type == "fakelag" and 95 or aa_type == "custom" and 85 or aa_type == "micro_jitter" and 30 or aa_type == "air_crouch" and 70 or aa_type == "hideshot" and 80 or aa_type == "low_delta" and 15 or aa_type == "fake_pitch" and 45 or aa_type == "defensive" and 90 or aa_type == "fake_lby" and 100 or aa_type == "adaptive_jitter" and 60 or aa_type == "fake_duck" and 75 or aa_type == "dynamic_lby" and 95 or aa_type == "fake_spin" and 110 or 45
+        desync_amount = desync_amount * (1 + math.min(records.missed_shots * 0.3, 1.5)) * ping_factor
+        desync_amount = math.min(desync_amount, aa_type == "spinbot" and 165 or aa_type == "teleport" and 155 or aa_type == "lag_spike" and 125 or aa_type == "fake_spin" and 160 or 125)
+        if aa_type == "air_crouch" and is_airborne and duck_amount > air_crouch_threshold then
+            desync_amount = desync_amount * 1.15
+        elseif aa_type == "defensive" and duck_amount > 0.1 then
+            desync_amount = desync_amount * 1.05
+        elseif aa_type == "fake_duck" or aa_type == "fake_lby" or aa_type == "dynamic_lby" then
+            desync_amount = desync_amount * 1.2
+        elseif aa_type == "hideshot" and #records.last_anim_layers > 2 then
+            desync_amount = desync_amount * 1.03
+        elseif aa_type == "adaptive_jitter" or aa_type == "fake_spin" then
+            desync_amount = desync_amount * 1.08
+        elseif velocity > 140 then
+            desync_amount = desync_amount * 1.02
+        end
+        local smooth_factor = aa_type == "jitter" and 0.75 or aa_type == "micro_jitter" and 0.8 or aa_type == "teleport" and 0.8 or aa_type == "fakelag" and 0.75 or aa_type == "custom" and 0.7 or aa_type == "air_crouch" and 0.75 or aa_type == "hideshot" and 0.8 or aa_type == "low_delta" and 0.65 or aa_type == "fake_pitch" and 0.7 or aa_type == "defensive" and 0.75 or aa_type == "lag_spike" and 0.65 or aa_type == "fake_lby" and 0.8 or aa_type == "adaptive_jitter" and 0.75 or aa_type == "fake_duck" and 0.75 or aa_type == "dynamic_lby" and 0.8 or aa_type == "fake_spin" and 0.8 or 0.6
+        resolve_angle = smooth_angle(base_angle, base_angle + (desync_amount * records.learned_side), smooth_factor)
     end
 
-    local smooth_factor = 0.85
-    resolve_angle = smooth_angle(base_angle, base_angle + (desync_amount * side), smooth_factor)
-    resolve_angle = brute_force_resolve(player, steam_id, resolve_angle, records)
-    
     resolve_angle = ((resolve_angle % 360 + 540) % 360 - 180)
     records.last_yaw = resolve_angle
 
-    local adjusted_hitbox = adjust_hitbox_position(records.last_valid_pos, aa_type, duck_amount, is_airborne, side)
+    local adjusted_hitbox = adjust_hitbox_position(records.last_valid_pos, aa_type, duck_amount, is_airborne)
     if adjusted_hitbox then
         records.last_valid_pos = adjusted_hitbox
-    end
-
-    if plist and plist.set then
-        plist.set(player, "Force body yaw value", resolve_angle)
-        plist.set(player, "Correction active", true)
     end
 
     return resolve_angle
@@ -853,27 +707,26 @@ function resolver.on_shot_fired(e)
     if not steam_id or not resolver.player_records[steam_id] then return end
 
     local records = resolver.player_records[steam_id]
+    local anim_state = entity.get_prop(target, "m_nPlayerAnimState") or 0
     records.shot_records:push({
         tick = e.tick,
-        predicted_angle = records.last_yaw or 0,
+        predicted_angle = records.last_yaw or (records.last_angles:get(1) and records.last_angles:get(1).angles[2] or 0),
         hit = e.hit,
         teleported = e.teleported,
         damage = e.damage,
         hitgroup = e.hitgroup or 0,
-        anim_state = entity.get_prop(target, "m_nPlayerAnimState") or 0,
+        anim_state = anim_state,
         anim_layers = analyze_anim_layers(target)
     })
 
-    if not (e.hit and e.hitgroup > 0 and e.damage > 0) then
-        records.missed_shots = records.missed_shots + 1
-        records.learned_side = -records.learned_side or (globals.tickcount() % 2 == 0 and 1 or -1)
-        
-        if records.missed_shots >= max_misses * 2 then
-            records.desync_history:clear()
-            records.missed_shots = math.max(0, records.missed_shots - 2)
-        end
-    else
+    records.missed_shots = e.hit and e.hitgroup > 0 and e.damage > 0 and 0 or records.missed_shots + 1
+
+    if records.missed_shots >= max_misses then
+        records.learned_side = records.learned_side and -records.learned_side or (globals.tickcount() % 2 == 0 and 1 or -1)
         records.missed_shots = math.max(0, records.missed_shots - 1)
+        if records.aa_type == "hideshot" or records.aa_type == "defensive" or records.aa_type == "fake_duck" or records.aa_type == "fake_lby" or records.aa_type == "adaptive_jitter" or records.aa_type == "dynamic_lby" or records.aa_type == "fake_spin" then
+            records.learned_side = -records.learned_side
+        end
     end
 end
 
@@ -886,22 +739,32 @@ function resolver.update()
         end
         resolver.player_records = {}
         resolver.last_simulation_time = {}
-        resolver.brute_force_cache = {}
         return
     end
 
     local current_time = globals.realtime()
-    if current_time - resolver.last_update < update_interval then return end
+    if current_time - resolver.last_update < update_interval * (64 / tickrate) then return end
     resolver.last_update = current_time
 
     update_tickrate()
     local targets = get_targets()
-    
     for _, player in ipairs(targets) do
         resolver.record_player(player)
-        resolver.resolve_angles(player)
+        local resolved_angle = resolver.resolve_angles(player)
+
+        if resolved_angle then
+            if plist and plist.set then
+                plist.set(player, "Force body yaw value", resolved_angle)
+                plist.set(player, "Correction active", true)
+            end
+        else
+            if plist and plist.set then
+                plist.set(player, "Correction active", false)
+            end
+        end
     end
 
+    -- Очистка устаревших записей (ТВОЙ БЛОК + фиксы)
     for steam_id, record in pairs(resolver.player_records) do
         local is_valid = false
         for _, player in ipairs(entity.get_players(true)) do
@@ -914,24 +777,72 @@ function resolver.update()
         local last_teleport = record.last_teleport_time or 0
         local time_since_teleport = current_time - last_teleport
 
-        if not is_valid or time_since_teleport > 1.5 then
+        if not is_valid or (last_teleport > 0 and time_since_teleport > 1.2) then
             resolver.player_records[steam_id] = nil
             resolver.last_simulation_time[steam_id] = nil
-            resolver.brute_force_cache[steam_id .. "_"] = nil
         end
-        
-        if record.last_angles:len() > max_history then
-            record.last_angles:clear()
-        end
-    end
-    
-    if globals.tickcount() % 128 == 0 then
-        resolver.brute_force_cache = {}
     end
 end
 
+-- UI
 local ui_group_a = {"LUA", "A"}
+local ui_group_b = {"LUA", "B"}
 resolver.enabled = ui.new_checkbox(ui_group_a[1], ui_group_a[2], "Resolver", false)
+local scope = {
+    enabled = ui.new_checkbox(ui_group_a[1], ui_group_a[2], "Scope Lines", false),
+    color = ui.new_color_picker(ui_group_a[1], ui_group_a[2], "Scope Lines Color", 0, 255, 0, 255),
+    position = ui.new_slider(ui_group_a[1], ui_group_a[2], "Scope Lines Position", 50, 500, 200, true, "px"),
+    offset = ui.new_slider(ui_group_a[1], ui_group_a[2], "Scope Lines Offset", 5, 100, 20, true, "px"),
+    fade_speed = ui.new_slider(ui_group_a[1], ui_group_a[2], "Fade Animation Speed", 5, 20, 12, true, "fr"),
+    thickness = ui.new_slider(ui_group_a[1], ui_group_a[2], "Scope Lines Thickness", 1, 5, 2, true, "px")
+}
+
+-- Bullet Tracer
+local bullet_tracers = {}
+client.set_event_callback("bullet_impact", function(e)
+    if not ui.get(bullet_tracer.enabled) then return end
+    local player = entity.get_local_player()
+    if not player or entity.get_prop(e.userid, "m_iTeamNum") ~= entity.get_prop(player, "m_iTeamNum") then return end
+    local start = vector(entity.get_prop(player, "m_vecOrigin") or {x=0, y=0, z=0}) + vector(entity.get_prop(player, "m_vecViewOffset") or {x=0, y=0, z=0})
+    local impact = vector(e.x, e.y, e.z)
+    table.insert(bullet_tracers, {
+        start = start,
+        end_pos = impact,
+        time = globals.curtime(),
+        duration = ui.get(bullet_tracer.duration)
+    })
+end)
+
+client.set_event_callback("paint", resolver.update)
+
+client.set_event_callback("player_hurt", function(e)
+    if not ui.get(resolver.enabled) then return end
+    local attacker = client.userid_to_entindex(e.attacker)
+    local victim = client.userid_to_entindex(e.userid)
+    local local_player = entity.get_local_player()
+    if not local_player or attacker ~= local_player or victim == local_player then return end
+    resolver.on_shot_fired({
+        target = victim,
+        hit = true,
+        damage = e.dmg_health,
+        hitgroup = e.hitgroup,
+        tick = globals.tickcount(),
+        teleported = false
+    })
+end)
+
+client.set_event_callback("aim_hit", function(e)
+    if not ui.get(resolver.enabled) then return end
+    resolver.on_shot_fired({
+        target = e.target,
+        hit = true,
+        damage = e.damage,
+        hitgroup = e.hitgroup,
+        tick = globals.tickcount(),
+        teleported = false
+    })
+end)
+
 
 local tracer_enabled = ui.new_checkbox("LUA", "A", "Bullet tracers")
 local tracer_color = ui.new_color_picker("LUA", "A", "Tracer color", 255, 255, 255, 255)
@@ -972,8 +883,6 @@ client.set_event_callback("bullet_impact", function(e)
 end)
 
 client.set_event_callback("paint", function()
-    resolver.update()
-    
     if not ui.get(tracer_enabled) then return end
 
     local curtime = globals.curtime()
@@ -994,34 +903,6 @@ client.set_event_callback("paint", function()
     end
 end)
 
-client.set_event_callback("player_hurt", function(e)
-    if not ui.get(resolver.enabled) then return end
-    local attacker = client.userid_to_entindex(e.attacker)
-    local victim = client.userid_to_entindex(e.userid)
-    local local_player = entity.get_local_player()
-    if not local_player or attacker ~= local_player or victim == local_player then return end
-    resolver.on_shot_fired({
-        target = victim,
-        hit = true,
-        damage = e.dmg_health,
-        hitgroup = e.hitgroup,
-        tick = globals.tickcount(),
-        teleported = false
-    })
-end)
-
-client.set_event_callback("aim_hit", function(e)
-    if not ui.get(resolver.enabled) then return end
-    resolver.on_shot_fired({
-        target = e.target,
-        hit = true,
-        damage = e.damage,
-        hitgroup = e.hitgroup,
-        tick = globals.tickcount(),
-        teleported = false
-    })
-end)
-
 client.set_event_callback("round_prestart", function()
     tracer_queue = {}
 end)
@@ -1030,25 +911,181 @@ client.set_event_callback("unload", function()
     tracer_queue = {}
 end)
 
+
+
+local clantag_states = {
+    "z?e?r?o?.?t?e?c?h?",
+    "z?e?r?o?.?t?e?c?h?",
+    "z?e?r?o?.?t?e?c?h?",
+    "z?e?r?o?.?t?e?c?h?",
+    "????????.????????",
+    "????????.????????",
+    "z?e?r?o?.?t?e?c?h?",
+    "z?e?r?o?.?t?e?c?h?",
+    "z?e?r?o?.?t?e?c?h?",
+    "z?e?r?o?.?t?e?c?h?",
+    "z?e?r?o?.?t?e?c?h?",
+    "z?e?r?o?.?t?e?c?h?",
+    "z?e?r?o?.?t?e?c?h?",
+    "z?e?r?o?.?t?e?c?h?",
+    "z?e?r?o?.?t?e?c?h?",
+    "z?e?r?o?.?t?e?c?h?",
+    "z?e?r?o?.?t?e?c?h?",
+    "z?e?r?o?.?t?e?c?h?",
+    "z?e?r?o?.?t?e?c?h?",
+    "z?e?r?o?.?t?e?c?h?"
+}
+
+local clantag_index = 1
+local clantag_last_change = 0
+local clantag_active = false
+
+client.set_event_callback("paint_ui", function()
+    if ui.get(trails.enable) then
+        local cur_time = globals.realtime()
+        if cur_time - clantag_last_change >= 0.4 then
+            clantag_index = (clantag_index % #clantag_states) + 1
+            clantag_last_change = cur_time
+
+            local tag = clantag_states[clantag_index]
+            client.exec("name " .. tag)
+            client.exec("cl_clanid 0")
+            clantag_active = true
+        end
+    else
+        if clantag_active then
+            client.exec("name ")
+            clantag_active = false
+            clantag_index = 1
+            clantag_last_change = 0
+        end
+    end
+end)
+
+local trail_data = {
+    last_origin = nil,
+    segments = {}
+}
+
+local function clear_trails()
+    trail_data = {
+        last_origin = nil,
+        segments = {}
+    }
+end
+
+local trailData = {};
+local function clearTrails ()
+	trailData = {};
+end
+
+local enable = ui.new_checkbox("LUA", "b", "Enable Trails");
+local segmentEXP = ui.new_slider("LUA", "b", 'Trail Segment Expiration', 1, 100, 10, true, 's', 0.1);
+local trailType = ui.new_combobox("LUA", "b", 'Trail Type', 'Line', 'Advanced Line', 'Rect');
+local colorType = ui.new_combobox("LUA", "b", 'Trail Color Type', 'Static', 'Chroma', 'Gradient Chroma');
+local staticColorValue = ui.new_color_picker("LUA", "b", 'Trail Color', 246, 34, 34, 255);
+local chromaSpeedMultiplier = ui.new_slider("LUA", "b", 'Trail Chroma Speed Multiplier', 1, 100, 1, true, '%', 0.1);
+local lineSize = ui.new_slider("LUA", "b", 'Line Size', 1, 100, 1, true);
+local rectW = ui.new_slider("LUA", "b", 'Rect Width', 1, 100, 1, true);
+local rectH = ui.new_slider("LUA", "b", 'Rect Height', 1, 100, 1, true);
+local trailXWidth = ui.new_slider("LUA", "b", 'Trail X Width', 1, 100, 1, true);
+local trailYWidth = ui.new_slider("LUA", "b", 'Trail Y Width', 1, 100, 1, true);
+ui.new_hotkey("LUA", "a", "Clear Trail Data", clearTrails)
+
+local Vector3 = require('vector');
+
+local function getFadeRGB(seed, speed)
+	local r = math.floor(math.sin((globals.realtime() + seed) * speed) * 127 + 128)
+	local g = math.floor(math.sin((globals.realtime() + seed) * speed + 2) * 127 + 128)
+	local b = math.floor(math.sin((globals.realtime() + seed) * speed + 4) * 127 + 128)
+	return r, g, b;
+end
+
+client.set_event_callback('paint', function()
+	local colorType = ui.get(colorType);
+	local trailType = ui.get(trailType);
+	ui.set_visible(staticColorValue, colorType == 'Static');
+	ui.set_visible(chromaSpeedMultiplier, colorType ~= 'Static');
+	ui.set_visible(trailXWidth, trailType == 'Advanced Line');
+	ui.set_visible(trailYWidth, trailType == 'Advanced Line');
+	ui.set_visible(lineSize, trailType == 'Line');
+	ui.set_visible(rectW, trailType == 'Rect');
+	ui.set_visible(rectH, trailType == 'Rect');
+	local lp = entity.get_local_player();
+	if (entity.is_alive(lp) and ui.get(enable)) then
+		local curTime = globals.curtime();
+		local curOrigin = Vector3(entity.get_prop(lp, "m_vecOrigin"));
+		if (trailData.lastOrigin == nil) then
+			trailData.lastOrigin = curOrigin;
+		end
+		local dist = curOrigin:dist(trailData.lastOrigin);
+		if (trailData.trailSegments == nil) then
+			trailData.trailSegments = {};
+		end
+		if (dist ~= 0) then
+			local x, y, z = entity.get_prop(lp, "m_vecOrigin");
+			local trailSegment = { pos = curOrigin, exp = curTime + ui.get(segmentEXP) * 0.1, x = x, y = y, z = z };
+			table.insert(trailData.trailSegments, trailSegment);
+		end
+		trailData.lastOrigin = curOrigin;
+		for i = #trailData.trailSegments, 1, -1 do
+			if (trailData.trailSegments[i].exp < curTime) then
+				table.remove(trailData.trailSegments, i);
+			end
+		end
+		for i, segment in ipairs(trailData.trailSegments) do
+			local x, y = renderer.world_to_screen(segment.x, segment.y, segment.z)
+			local seed = 0;
+			if (colorType == 'Gradient Chroma') then
+				seed = i;
+			end
+			if (x ~= nil and y ~= nil) then
+				local r, g, b = getFadeRGB(seed, ui.get(chromaSpeedMultiplier) * 0.1);
+				if (colorType == 'Static') then
+					r, g, b = ui.get(staticColorValue);
+				end
+				if (trailType == 'Line' or trailType == 'Advanced Line') then
+					if (i < #trailData.trailSegments) then
+						local segment2 = trailData.trailSegments[i + 1]
+						local x2, y2 = renderer.world_to_screen(segment2.x, segment2.y, segment2.z)
+						if (x2 ~= nil and y2 ~= nil) then
+							if (trailType == 'Advanced Line') then
+								for i = 1, ui.get(trailXWidth) do
+									renderer.line(x + i, y, x2 + i, y2, r, g, b, 255);
+								end
+								for i = 1, ui.get(trailYWidth) do
+									renderer.line(x, y + i, x2, y2 + i, r, g, b, 255);
+								end
+							else
+								for i = 1, ui.get(lineSize) do
+									renderer.line(x + i, y + i, x2 + i, y2 + i, r, g, b, 255);
+								end
+							end
+						end
+					end
+				else
+					
+					renderer.rectangle(x, y, ui.get(rectW), ui.get(rectH), r, g, b, 255);
+				end
+			end
+		end
+	end
+end)
+
+client.set_event_callback("round_start", clearTrails);
+
 client.set_event_callback("player_disconnect", function(e)
     local steam_id = entity.get_steam64(e.userid)
     if steam_id then
         resolver.player_records[steam_id] = nil
         resolver.last_simulation_time[steam_id] = nil
-        resolver.brute_force_cache[steam_id .. "_"] = nil
     end
-end)
-
-client.set_event_callback("round_start", function()
-    tracer_queue = {}
-    resolver.brute_force_cache = {}
 end)
 
 client.set_event_callback("level_init", function()
     resolver.player_records = {}
     resolver.last_simulation_time = {}
-    resolver.brute_force_cache = {}
     resolver.last_valid_tick = globals.tickcount()
 end)
 
-client.log("zero.tech loaded")
+client.log("Script loaded successfully")
