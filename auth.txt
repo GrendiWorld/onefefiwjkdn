@@ -1,3 +1,1 @@
-test1@gmail.com:pass123
-test2@gmail.com:pass456
-test3@gmail.com:pass789
+admin|admin|1746914604|admin
