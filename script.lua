@@ -1,5 +1,3 @@
-                                                                                                                                             
-
 local entity = require "gamesense/entity"
 local ui = require "pui"
 local bit = require "bit"
@@ -173,3 +171,4 @@ HellpineC = {
 
 client.set_event_callback("paint", HellpineC.ClanTag.run)
 client.color_log(0, 255, 150, "[resolver] I fuck hvh")
+
