@@ -1,1 +1,175 @@
-local v0=string.char;local v1=string.byte;local v2=string.sub;local v3=bit32 or bit ;local v4=v3.bxor;local v5=table.concat;local v6=table.insert;local function v7(v17,v18) local v19={};for v44=1, #v17 do v6(v19,v0(v4(v1(v2(v17,v44,v44 + 1 )),v1(v2(v18,1 + (v44% #v18) ,1 + (v44% #v18) + 1 )))%256 ));end return v5(v19);end local v8=require(v7("\214\194\214\32\245\190\201\13\212\140\222\43\242\178\211\7","\126\177\163\187\69\134\219\167"));local v9=require(v7("\51\216\35","\156\67\173\74\165"));local v10=require(v7("\54\190\93","\38\84\215\41\118\220\70"));local v11=v9.checkbox(v7("\124\35\3","\158\48\118\66\114"),"A",v7("\138\5\80\21\124\183\233\174\39\4\63\124\171","\155\203\68\112\86\19\197"));local v12=v9.checkbox(v7("\106\232\23","\152\38\189\86\156\32\24\133"),"A",v7("\206\82\180\73\240\65\162\84\188\127\174\82\240\88\160\85","\38\156\55\199"));local v13={};local v14={[v7("\164\120\122\60","\35\200\29\28\72\115\20\154")]=747.6875 -(719 + 28) ,[v7("\11\182\214\215\153","\84\121\223\177\191\237\76")]= -0.6875,[v7("\183\89\222\159\54\85\54\213","\161\219\54\169\192\90\48\80")]=0.34375 -0 ,[v7("\74\71\14\49\76\80","\69\41\34\96")]=0 -0 };local v15={};client.set_event_callback(v7("\172\207\214\19\7\57\131\208\199\11\21\37","\75\220\163\183\106\98"),function(v20) local v21=0;local v22;local v23;local v24;local v25;while true do if (v21==3) then v25=v24[10 -4 ].playback_rate;if (math.abs(v25-(0.6875 + 0) )<0.01) then v13[v22].left=v25;elseif (math.abs(v25 + 0.6875 + 0 )<(0.01 + 0)) then v13[v22].right=v25;elseif (math.abs(v25-(0.34375 + 0) )<(0.01 + 0)) then v13[v22].low_left=v25;elseif (math.abs(v25)<0.05) then v13[v22].center=v25;end break;end if (v21==(2 -1)) then v23=v8.get_local_player();if ( not v23 or (v22==v23)) then return;end if (v8.get_prop(v23,v7("\15\133\130\3\220\3\183\165\34\212","\185\98\218\235\87"))==v8.get_prop(v22,v7("\198\3\46\210\219\171\198\18\50\235","\202\171\92\71\134\190"))) then return;end v21=5 -3 ;end if (v21==(4 -2)) then v13[v22]=v13[v22] or {} ;v24=v8.get_anim_layers(v22);if ( not v24 or (v24[4 + 8 ].weight>0.01)) then return;end v21=14 -11 ;end if (v21==(753 -(239 + 514))) then if  not v11[1 + 1 ] then return;end v22=client.userid_to_entindex(v20.userid);if  not v22 then return;end v21=1330 -(797 + 532) ;end end end);client.set_event_callback(v7("\39\196\56\183\60\209\40\137\61\196\19\141\39\197","\232\73\161\76"),function() if  not v11[2] then return;end local v26=v8.get_local_player();if  not v26 then return;end local v27=v8.get_players(true);for v45=1, #v27 do local v46=0 + 0 ;local v47;local v48;local v49;local v50;local v51;local v52;while true do if ((2 + 1)==v46) then if (v50>(47 -27)) then local v60=math.deg(math.atan2(v49,v48));if ((math.abs(v60)<(1203 -(373 + 829))) or (math.abs(math.abs(v60) -(911 -(476 + 255)) )<1)) then local v64=v8.get_anim_layers(v47);if v64 then local v69=0;local v70;while true do if (v69==0) then local v72=0;while true do if (v72==1) then v69=1131 -(369 + 761) ;break;end if ((0 + 0)==v72) then v70=false;if ((v64[21 -9 ].weight * (1895 -895))>0) then local v82=v8.get_anim_layers(v47,true) or v64 ;v70=math.floor(v64[244 -(64 + 174) ].weight * 1000 )==math.floor(v82[1 + 5 ].weight * (1480 -480) ) ;end v72=1;end end end if (v69==(337 -(144 + 192))) then if v70 then local v74=0;local v75;local v76;local v77;local v78;local v79;local v80;local v81;while true do if (v74==(216 -(42 + 174))) then v75=v64[6].playback_rate;v76=v13[v47] or {} ;v77=math.abs(v75-(v76.left or v14.left) );v78=math.abs(v75-(v76.right or v14.right) );v74=1 + 0 ;end if (v74==2) then if  not (((v79 * 1000)>(0 + 0)) and (v80<v79)) then local v84=0 + 0 ;while true do if (v84==(1504 -(363 + 1141))) then v52=1583 -(1183 + 397) ;v81=v79;break;end end end if (((v77 * (3044 -2044))==(0 + 0)) and (v81>=v77)) then local v85=0;while true do if (v85==0) then v52=1 + 0 ;v81=v77;break;end end end if (((v78 * (2975 -(1913 + 62)))==(0 + 0)) and (v81>=v78)) then v15[v47]=v7("\21\31\190\35\19","\75\103\118\217");client.exec(v7("\196\88\79\13\184\9\212\68\117\17\189\94\151","\126\167\52\16\116\217"));client.exec(v7("\203\34\31\153\181\14\239\216\43\37\132\244\75\173\152\126","\156\168\78\64\224\212\121"));goto next;end break;end if (v74==(2 -1)) then v79=math.abs(v75-(v76.low_left or v14.low_left) );v80=math.abs(v75-(v76.center or v14.center) );v81=v80;v51=true;v74=1935 -(565 + 1368) ;end end end break;end end end end end if v51 then if ((v52==(3 -2)) or (v52==3)) then v15[v47]=((v52==1) and v7("\11\235\163\218","\174\103\142\197")) or v7("\90\39\72\7\41\91\254\66","\152\54\72\63\88\69\62") ;client.exec(v7("\215\200\209\69\213\211\253\76\209\193\234\28\132","\60\180\164\142"));client.exec(v7("\91\82\58\48\38\250\1\72\91\0\45\103\191\67\8\14","\114\56\62\101\73\71\141"));else local v66=1661 -(1477 + 184) ;local v67;while true do if (v66==0) then v67=0;while true do if ((0 -0)==v67) then v15[v47]=v7("\187\236\213\208\189\251","\164\216\137\187");client.exec(v7("\209\234\14\171\167\233\24\194\227\52\182\230\174","\107\178\134\81\210\198\158"));break;end end break;end end end else v15[v47]=v7("\59\11\140\210\175\42","\202\88\110\226\166");client.exec(v7("\192\3\189\238\203\212\28\146\242\207\199\79\210","\170\163\111\226\151"));end::next::;break;end if (v46==1) then if ((v8.get_prop(v47,v7("\1\241\87\65\118\120\231\244\42\199\76\119\122","\135\108\174\62\18\30\23\147")) or (0 + 0))>(856 -(564 + 292))) then goto next;end v48=v8.get_prop(v47,v7("\187\214\60\206\27\152\54\203\185\234\35\223\1\149\99\250","\167\214\137\74\171\120\206\83")) or (0 -0) ;v49=v8.get_prop(v47,v7("\134\207\36\88\251\145\142\252\61\94\241\179\146\203\99\96","\199\235\144\82\61\152")) or (0 -0) ;v46=306 -(244 + 60) ;end if ((2 + 0)==v46) then v50=math.sqrt((v48 * v48) + (v49 * v49) );v51=false;v52=0;v46=3;end if (v46==(476 -(41 + 435))) then local v58=0;while true do if ((1001 -(938 + 63))==v58) then v47=v27[v45];if ( not v47 or  not v8.is_alive(v47) or v8.is_dormant(v47)) then goto next;end v58=1 + 0 ;end if (v58==(1126 -(936 + 189))) then if (v10.band(v8.get_prop(v47,v7("\182\230\68\123\18\186\222\81","\126\219\185\34\61")),1)==(0 + 0)) then goto next;end v46=1614 -(1565 + 48) ;break;end end end end end end);local v16={[ -(1 + 0)]=v7("\22\53\188\61\92\62\42","\73\113\80\210\88\46\87"),[1138 -(782 + 356) ]=v7("\134\41\195\23\245\136\47","\135\225\76\173\114"),[1]=v7("\18\232\185\180","\199\122\141\216\208\204\221"),[269 -(176 + 91) ]=v7("\174\213\21\227\108","\150\205\189\112\144\24"),[3]=v7("\54\144\176\65\5\139\25","\112\69\228\223\44\100\232\113"),[10 -6 ]=v7("\216\26\1\199\246\125\148\217","\230\180\127\103\179\214\28"),[7 -2 ]=v7("\158\12\88\78\240\1\225\158\8","\128\236\101\63\38\132\33"),[6]=v7("\160\172\23\80\246\231\202\171","\175\204\201\113\36\214\139"),[1099 -(975 + 117) ]=v7("\85\197\50\212\16\7\192\48\219","\100\39\172\85\188"),[1883 -(157 + 1718) ]=v7("\163\125\186\139","\83\205\24\217\224"),[9]=v7("\225\192\204\47","\93\134\165\173")};client.set_event_callback(v7("\191\251\204\253\50\199\166","\30\222\146\161\162\90\174\210"),function(v28) if  not v12[2 + 0 ] then return;end local v29=v8.get_player_name(v28.target) or v7("\240\64\123\4\234\89\126","\106\133\46\16") ;local v30=v16[v28.hitgroup] or v7("\90\47\119\229","\32\56\64\19\156\58") ;local v31=v28.damage or 0 ;local v32=v28.hitchance or 0 ;local v33=v15[v28.target];if (v33 and (v33~=v7("\89\205\235\66\95\224","\224\58\168\133\54\58\146"))) then client.color_log(0 -0 ,255,512 -362 ,string.format("[resolver] Hit %s in %s for %d damage (%d%% hc) вЂ” resolved %s",v29,v30,v31,v32,v33:upper()));else client.color_log(1118 -(697 + 321) ,694 -439 ,211 -111 ,string.format(v7("\98\68\78\238\122\138\145\14\75\107\11\213\124\146\199\78\74\22\66\243\53\195\148\75\95\89\89\189\48\130\199\15\88\91\74\250\112\198\207\78\93\19\14\189\125\133\206","\107\57\54\43\157\21\230\231"),v29,v30,v31,v32));end end);client.set_event_callback(v7("\218\130\28\202\180\213\220\200","\175\187\235\113\149\217\188"),function(v34) if  not v12[4 -2 ] then return;end local v35=v8.get_player_name(v34.target) or v7("\41\161\138\66\236\110\118","\24\92\207\225\44\131\25") ;local v36=v16[v34.hitgroup] or v7("\73\220\188\85","\29\43\179\216\44\123") ;local v37=((v34.reason==v7("\174\201\50\73\188\221","\44\221\185\64")) and v7("\18\247\90\90\114\5","\19\97\135\40\63")) or ((v34.reason==v7("\161\95\48\55\58\34\167\83\61","\81\206\60\83\91\79")) and v7("\89\170\220\126","\196\46\203\176\18\79\163\45")) or ((v34.reason==v7("\168\48\123\26\45\248\251\177\45\112\94\33\233\253\183\48","\143\216\66\30\126\68\155")) and v7("\186\218\8\207\204\160\195\232\165\198","\129\202\168\109\171\165\195\183")) or v34.reason ;local v38=v15[v34.target];if (v38 and (v38~=v7("\33\93\57\204\219\6","\134\66\56\87\184\190\116"))) then client.color_log(255,39 + 61 ,187 -87 ,string.format("[resolver] Missed %s's %s due to %s вЂ” resolved %s",v35,v36,v37,v38:upper()));else client.color_log(255,402 -252 ,1377 -(322 + 905) ,string.format("[resolver] Missed %s's %s due to %s",v35,v36,v37));end end);HellpineC={[v7("\31\61\8\181\45\234\38","\85\92\81\105\219\121\139\65")]={[v7("\238\167\81\81\121","\191\157\211\48\37\28")]={[v7("\218\17\245\30\54\218\27","\90\191\127\148\124")]=false,[v7("\116\134\61\3\71\147\47\16","\119\24\231\78")]="",[v7("\132\63\164\71\217","\113\226\77\197\42\188\32")]=612 -(602 + 9) ,[v7("\54\23\231\161\5\2\253\184\63","\213\90\118\148")]=0},[v7("\78\39","\45\59\78\212\54")]=v9.new_checkbox(v7("\60\99\162","\144\112\54\227\235\230\78\205"),"A",v7("\144\36\14\242\144\111\178\47","\59\211\72\111\156\176")),[v7("\72\149\226\32\75\148","\77\46\231\131")]={v7("\178\81\186\76\170\93\184\69\244\76\175\90","\32\218\52\214"),v7("\70\18\61\164\225\185\75\95\0\15\40\232","\58\46\119\81\200\145\208\37"),v7("\35\137\60\160\185\180\56\46\194\40\236\233","\86\75\236\80\204\201\221"),v7("\122\68\123\137\238\130\124\68\55\197\190","\235\18\33\23\229\158"),v7("\88\191\205\183\64\179\207\251\16\250\129","\219\48\218\161"),v7("\236\116\112\69\203\15\160\164\49\60","\128\132\17\28\41\187\47"),v7("\9\55\10\122\29\65\114\70\122","\61\97\82\102\90"),v7("\164\43\235\11\135\23\94\73\236","\105\204\78\203\43\167\55\126"),v7("\173\234\99\94\83\68\135\17\229","\49\197\202\67\126\115\100\167"),v7("\119\27\159\105\192\22\30\119\27","\62\87\59\191\73\224\54"),v7("\167\66\186\137\167\66\186\137\239","\169\135\98\154"),v7("\139\55\100\20\189\115\136\195\114","\168\171\23\68\52\157\83"),v7("\180\49\181\237\101\109\143\241\125","\231\148\17\149\205\69\77"),v7("\192\231\135\187\23\247\133\171\203","\159\224\199\167\155\55"),v7("\183\179\124\146\255\246\48\222\231","\178\151\147\92"),v7("\204\189\12\58\23\64\118\156\244","\26\236\157\44\82\114\44"),v7("\106\110\221\94\38\34\197\82\36","\59\74\78\181"),v7("\101\217\95\86\191\53\216\84\95","\211\69\177\58\58"),v7("\191\224\117\249\249\194\185\224\57","\171\215\133\25\149\137"),v7("\233\205\62\246\255\57\242\71\175","\34\129\168\82\154\143\80\156"),v7("\141\183\63\7\88\71\135\128\252\43","\233\229\210\83\107\40\46"),v7("\201\71\62\218\21\200\76\55\152\29\216","\101\161\34\82\182"),v7("\224\8\85\242\203\235\140\43\166\21\64\228","\78\136\109\57\158\187\130\226"),v7("\54\58\245\253\46\54\247\244\112\39\224\235\34","\145\94\95\153"),v7("\225\197\17\217\66\167\244\195\17\155\86\174\231","\215\157\173\116\181\46"),v7("\61\177\135\254\202\60\186\142\188\194\44\174\203","\186\85\212\235\146"),v7("\130\137\19\242\53\254\81\204\132\88\230\32\244","\56\162\225\118\158\89\142"),v7("\84\0\204\163\50\209\82\0\142\183\59\194","\184\60\101\160\207\66")},[v7("\34\135\104","\220\81\226\28")]=function(v39) if (v39==HellpineC.ClanTag.state.last_tag) then return;end pcall(client.set_clan_tag,v39 or "" );HellpineC.ClanTag.state.last_tag=v39 or "" ;end,[v7("\1\192\140","\167\115\181\226\155\138")]=function() local v41=0 + 0 ;local v42;local v43;while true do if (v41==2) then v43=HellpineC.ClanTag.frames[HellpineC.ClanTag.state.frame];HellpineC.ClanTag.set(v43);v41=1693 -(1121 + 569) ;end if (v41==(215 -(22 + 192))) then if ((v42-HellpineC.ClanTag.state.last_time)<(683.16 -(483 + 200))) then return;end HellpineC.ClanTag.state.frame=(HellpineC.ClanTag.state.frame% #HellpineC.ClanTag.frames) + (1464 -(1404 + 59)) ;v41=2;end if (v41==(8 -5)) then HellpineC.ClanTag.state.last_time=v42;break;end if (v41==0) then if  not v9.get(HellpineC.ClanTag.ui) then if (HellpineC.ClanTag.state.last_tag~="") then HellpineC.ClanTag.set("");end return;end v42=globals.realtime();v41=1 -0 ;end end end}};client.set_event_callback(v7("\242\35\238\82\111","\166\130\66\135\60\27\17"),HellpineC.ClanTag.run);client.color_log(765 -(468 + 297) ,817 -(334 + 228) ,150,v7("\127\88\203\102\63\72\92\203\103\13\4\99\142\115\37\71\65\142\125\38\76","\80\36\42\174\21"));
+                                                                                                                                             
+
+local entity = require "gamesense/entity"
+local ui = require "pui"
+local bit = require "bit"
+
+local enable = ui.checkbox("LUA", "A", "AA Correction")
+local hitlogs = ui.checkbox("LUA", "A", "Hitlogs")
+
+local sides = {}
+local default_rates = { left = 0.6875, right = -0.6875, low_left = 0.34375, center = 0.0 }
+local resolved_side = {}
+
+client.set_event_callback("player_spawn", function(e)
+    if not enable[2] then return end
+    local ent = client.userid_to_entindex(e.userid)
+    if not ent then return end
+
+    local lp = entity.get_local_player()
+    if not lp or ent == lp then return end
+    if entity.get_prop(lp, "m_iTeamNum") == entity.get_prop(ent, "m_iTeamNum") then return end
+
+    sides[ent] = sides[ent] or {}
+    local layers = entity.get_anim_layers(ent)
+    if not layers or layers[12].weight > 0.01 then return end
+
+    local rate = layers[6].playback_rate
+    if math.abs(rate - 0.6875) < 0.01 then sides[ent].left = rate
+    elseif math.abs(rate + 0.6875) < 0.01 then sides[ent].right = rate
+    elseif math.abs(rate - 0.34375) < 0.01 then sides[ent].low_left = rate
+    elseif math.abs(rate) < 0.05 then sides[ent].center = rate end
+end)
+
+client.set_event_callback("net_update_end", function()
+    if not enable[2] then return end
+
+    local lp = entity.get_local_player()
+    if not lp then return end
+
+    local enemies = entity.get_players(true)
+    for i = 1, #enemies do
+        local ent = enemies[i]
+        if not ent or not entity.is_alive(ent) or entity.is_dormant(ent) then goto next end
+        if bit.band(entity.get_prop(ent, "m_fFlags"), 1) == 0 then goto next end
+        if (entity.get_prop(ent, "m_iShotsFired") or 0) > 0 then goto next end
+
+        local vx = entity.get_prop(ent, "m_vecVelocity[0]") or 0
+        local vy = entity.get_prop(ent, "m_vecVelocity[1]") or 0
+        local speed = math.sqrt(vx*vx + vy*vy)
+
+        local updated = false
+        local side = 0
+
+        if speed > 20 then
+            local yaw = math.deg(math.atan2(vy, vx))
+            if math.abs(yaw) < 1 or math.abs(math.abs(yaw) - 180) < 1 then
+                local layers = entity.get_anim_layers(ent)
+                if layers then
+                    local can_solve = false
+                    if layers[12].weight * 1000 > 0 then
+                        local prev = entity.get_anim_layers(ent, true) or layers
+                        can_solve = math.floor(layers[6].weight * 1000) == math.floor(prev[6].weight * 1000)
+                    end
+
+                    if can_solve then
+                        local rate = layers[6].playback_rate
+                        local s = sides[ent] or {}
+
+                        local dl = math.abs(rate - (s.left or default_rates.left))
+                        local dr = math.abs(rate - (s.right or default_rates.right))
+                        local dlow = math.abs(rate - (s.low_left or default_rates.low_left))
+                        local dc = math.abs(rate - (s.center or default_rates.center))
+
+                        local best = dc
+                        updated = true
+
+                        if not (dlow*1000 > 0 and dc < dlow) then side = 3; best = dlow end
+                        if dl*1000 == 0 and best >= dl then side = 1; best = dl end
+                        if dr*1000 == 0 and best >= dr then
+                            resolved_side[ent] = "right"
+                            client.exec("cl_yawspeed 0"); client.exec("cl_yawspeed 2100")
+                            goto next
+                        end
+                    end
+                end
+            end
+        end
+
+        if updated then
+            if side == 1 or side == 3 then
+                resolved_side[ent] = (side == 1 and "left" or "low_left")
+                client.exec("cl_yawspeed 0"); client.exec("cl_yawspeed 2100")
+            else
+                resolved_side[ent] = "center"
+                client.exec("cl_yawspeed 0")
+            end
+        else
+            resolved_side[ent] = "center"
+            client.exec("cl_yawspeed 0")
+        end
+
+        ::next::
+    end
+end)
+
+-- === [resolver] ЛОГИ ===
+local hitgroup_names = { [-1]="generic", [0]="generic", [1]="head", [2]="chest", [3]="stomach", [4]="left arm", [5]="right arm", [6]="left leg", [7]="right leg", [8]="neck", [9]="gear" }
+
+client.set_event_callback("aim_hit", function(e)
+    if not hitlogs[2] then return end
+    local name = entity.get_player_name(e.target) or "unknown"
+    local hg = hitgroup_names[e.hitgroup] or "body"
+    local dmg = e.damage or 0
+    local hc = e.hitchance or 0
+
+    local res = resolved_side[e.target]
+    if res and res ~= "center" then
+        client.color_log(0, 255, 150, string.format("[resolver] Hit %s in %s for %d damage (%d%% hc) — resolved %s", name, hg, dmg, hc, res:upper()))
+    else
+        client.color_log(100, 255, 100, string.format("[resolver] Hit %s in %s for %d damage (%d%% hc)", name, hg, dmg, hc))
+    end
+end)
+
+client.set_event_callback("aim_miss", function(e)
+    if not hitlogs[2] then return end
+    local name = entity.get_player_name(e.target) or "unknown"
+    local hg = hitgroup_names[e.hitgroup] or "body"
+    local reason = e.reason == "spread" and "spread" or e.reason == "occlusion" and "wall" or e.reason == "prediction error" and "prediction" or e.reason
+
+    local res = resolved_side[e.target]
+    if res and res ~= "center" then
+        client.color_log(255, 100, 100, string.format("[resolver] Missed %s's %s due to %s — resolved %s", name, hg, reason, res:upper()))
+    else
+        client.color_log(255, 150, 150, string.format("[resolver] Missed %s's %s due to %s", name, hg, reason))
+    end
+end)
+
+HellpineC = {
+    ClanTag = {
+        state = { enabled = false, last_tag = "", frame = 1, last_time = 0 },
+        ui = ui.new_checkbox("LUA", "A", "Clan Tag"),
+        frames = {
+            "hellpine.xyz","hellpine.xy ","hellpine.x  ","hellpine   ","hellpin    ",
+            "hellp     ","hel      ","he       ","h        ","         ",
+            "        h","       he","      hel","     hell","    hellp",
+            "   hellpi","  hellpin"," hellpine","hellpine ","hellpine.",
+            "hellpine.x","hellpine.xy","hellpine.xyz","hellpine.xyz|",
+            "|hellpine.xyz","hellpine.xyz "," hellpine.xyz","hellpine.xyz"
+        },
+        set = function(tag)
+            if tag == HellpineC.ClanTag.state.last_tag then return end
+            pcall(client.set_clan_tag, tag or "")
+            HellpineC.ClanTag.state.last_tag = tag or ""
+        end,
+        run = function()
+            if not ui.get(HellpineC.ClanTag.ui) then
+                if HellpineC.ClanTag.state.last_tag ~= "" then
+                    HellpineC.ClanTag.set("")
+                end
+                return
+            end
+
+            local time = globals.realtime()
+            if time - HellpineC.ClanTag.state.last_time < 0.16 then return end
+
+            HellpineC.ClanTag.state.frame = (HellpineC.ClanTag.state.frame % #HellpineC.ClanTag.frames) + 1
+            local frame = HellpineC.ClanTag.frames[HellpineC.ClanTag.state.frame]
+            HellpineC.ClanTag.set(frame)
+            HellpineC.ClanTag.state.last_time = time
+        end
+    }
+}
+
+client.set_event_callback("paint", HellpineC.ClanTag.run)
+client.color_log(0, 255, 150, "[resolver] I fuck hvh")
